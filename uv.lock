@@ -254,6 +254,33 @@ wheels = [
 ]
 
 [[package]]
+name = "elte-rag-assistant"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "faiss-cpu" },
+    { name = "fastapi" },
+    { name = "langchain" },
+    { name = "langchain-community" },
+    { name = "langchain-huggingface" },
+    { name = "pypdf" },
+    { name = "sentence-transformers" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "faiss-cpu", specifier = ">=1.13.1" },
+    { name = "fastapi", specifier = ">=0.125.0" },
+    { name = "langchain", specifier = ">=1.2.0" },
+    { name = "langchain-community", specifier = ">=0.4.1" },
+    { name = "langchain-huggingface", specifier = ">=1.2.0" },
+    { name = "pypdf", specifier = ">=6.4.2" },
+    { name = "sentence-transformers", specifier = ">=5.2.0" },
+    { name = "uvicorn", specifier = ">=0.38.0" },
+]
+
+[[package]]
 name = "faiss-cpu"
 version = "1.13.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1829,33 +1856,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/0a/d4/2b0cd0fe285e14b36db076e78c93766ff1d529d70408bd1d2a5a84f1d929/tenacity-9.1.2.tar.gz", hash = "sha256:1169d376c297e7de388d18b4481760d478b0e99a777cad3a9c86e556f4b697cb", size = 48036 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e5/30/643397144bfbfec6f6ef821f36f33e57d35946c44a2352d3c9f0ae847619/tenacity-9.1.2-py3-none-any.whl", hash = "sha256:f77bf36710d8b73a50b2dd155c97b870017ad21afe6ab300326b0371b3b05138", size = 28248 },
-]
-
-[[package]]
-name = "thesis"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "faiss-cpu" },
-    { name = "fastapi" },
-    { name = "langchain" },
-    { name = "langchain-community" },
-    { name = "langchain-huggingface" },
-    { name = "pypdf" },
-    { name = "sentence-transformers" },
-    { name = "uvicorn" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "faiss-cpu", specifier = ">=1.13.1" },
-    { name = "fastapi", specifier = ">=0.125.0" },
-    { name = "langchain", specifier = ">=1.2.0" },
-    { name = "langchain-community", specifier = ">=0.4.1" },
-    { name = "langchain-huggingface", specifier = ">=1.2.0" },
-    { name = "pypdf", specifier = ">=6.4.2" },
-    { name = "sentence-transformers", specifier = ">=5.2.0" },
-    { name = "uvicorn", specifier = ">=0.38.0" },
 ]
 
 [[package]]
