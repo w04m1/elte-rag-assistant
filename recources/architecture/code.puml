@@ -1,0 +1,61 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEF8
+skinparam classBackgroundColor #F0F0F0
+skinparam classBorderColor #333333
+
+package "Preprocessing Pipeline (Batch)" #E8F4F8 {
+    [PDF Documents] as docs
+    [Ingestion Service\n(PyPDF2/Unstructured)] as ingest
+    [Text Chunking\n(RecursiveCharacterTextSplitter)] as chunk
+    [Embedding Model\n(paraphrase-multilingual-MiniLM)] as embed_model
+    [Vector Store (FAISS)] as vector_db
+    
+    docs --> ingest: extract text
+    ingest --> chunk: split text
+    chunk --> embed_model: vectorize chunks
+    embed_model --> vector_db: store embeddings
+}
+
+package "Runtime Pipeline (Query-Response)" #F8E8F4 {
+    [Student User] as user
+    [React Frontend] as frontend
+    [FastAPI Backend] as backend
+    [Query Embedding] as query_embed
+    [Retrieval (Top-K)] as retrieve
+    [LLM Generator\n(GPT-4o / Llama)] as llm
+    [Final Answer\nwith Citations] as response
+    
+    user --> frontend: asks question
+    frontend --> backend: send query
+    backend --> query_embed: embed query
+    query_embed --> vector_db: similarity search
+    vector_db --> retrieve: return context chunks
+    retrieve --> llm: context + query
+    llm --> backend: generated response
+    backend --> frontend: JSON response
+    frontend --> user: display answer
+}
+
+package "Admin & Management" #F4F8E8 {
+    [Admin Panel\n(React/FastAPI)] as admin
+    [Document Manager] as doc_mgr
+    [Usage Logger] as logger
+    
+    admin --> doc_mgr: upload new docs
+    doc_mgr --> ingest: trigger reindexing
+    backend --> logger: log all queries
+}
+
+vector_db -.-> retrieve: shared access
+
+note right of vector_db
+    Local FAISS index
+    No external dependencies
+end note
+
+note right of llm
+    Local or API-based
+    Configurable per deployment
+end note
+@enduml
