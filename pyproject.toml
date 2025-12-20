@@ -13,4 +13,16 @@ dependencies = [
     "pypdf>=6.4.2",
     "sentence-transformers>=5.2.0",
     "uvicorn>=0.38.0",
+    "torch>=2.0.0",
 ]
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch" },
+]
+
