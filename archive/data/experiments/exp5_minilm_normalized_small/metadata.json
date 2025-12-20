@@ -1,0 +1,21 @@
+{
+  "name": "exp5_minilm_normalized_small",
+  "timestamp": "2025-12-20T16:28:04.876952",
+  "model": "all-MiniLM-L6-v2",
+  "model_key": "minilm",
+  "cleaning_strategy": "normalized",
+  "chunk_config": {
+    "chunk_size": 500,
+    "chunk_overlap": 50,
+    "separators": [
+      "\n\n",
+      "\n",
+      ".",
+      " ",
+      ""
+    ]
+  },
+  "chunk_key": "small",
+  "total_documents": 1168,
+  "total_chunks": 9326
+}

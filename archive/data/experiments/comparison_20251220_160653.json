@@ -1,0 +1,1418 @@
+[
+  {
+    "experiment": "exp1_minilm_basic",
+    "metadata": {
+      "name": "exp1_minilm_basic",
+      "timestamp": "2025-12-20T15:40:53.987247",
+      "model": "all-MiniLM-L6-v2",
+      "model_key": "minilm",
+      "cleaning_strategy": "basic",
+      "chunk_config": {
+        "chunk_size": 800,
+        "chunk_overlap": 100,
+        "separators": [
+          "\n\n",
+          "\n",
+          ".",
+          " ",
+          ""
+        ]
+      },
+      "chunk_key": "default",
+      "total_documents": 1168,
+      "total_chunks": 5854
+    },
+    "queries": [
+      {
+        "query": "What are the requirements for doctoral studies?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.588361918926239,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 104,
+            "content_preview": "rules pertaining to granting a Student permission to take the  comprehensive examination and the passage of the comprehensive examination at  the give"
+          },
+          {
+            "score": 0.588361918926239,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 105,
+            "content_preview": "rules pertaining to granting a Student permission to take the  comprehensive examination and the passage of the comprehensive examination at  the give"
+          },
+          {
+            "score": 0.6666170954704285,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 18,
+            "content_preview": ".   (3) The training plan of the doctoral school and the doctoral programme shall include   a) indication of the Masters\u2019 degrees or other university "
+          }
+        ],
+        "avg_distance": 0.6144469777743021,
+        "min_distance": 0.588361918926239
+      },
+      {
+        "query": "How do I enroll in courses?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.8677507638931274,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 14,
+            "content_preview": ". The type and features of the course are identical to  those of the study unit for whose completion it serves (time frame, number of contact hours,  "
+          },
+          {
+            "score": 0.8967959880828857,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 63,
+            "content_preview": "Volume 2 of the ELTE Organisational and Operational Regulations  Academic Regulations for Students   64  customary at the faculty, and the Office of E"
+          },
+          {
+            "score": 0.8977649211883545,
+            "source": "doctoral_regulations_ELTE_01.09.2025.pdf",
+            "page": 118,
+            "content_preview": ". No further  opportunities for registration (for an active semester) shall be provided.   (2) 311The Doctoral Student shall indicate the courses he/s"
+          }
+        ],
+        "avg_distance": 0.8874372243881226,
+        "min_distance": 0.8677507638931274
+      },
+      {
+        "query": "What is the thesis submission process?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.7336258292198181,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 190,
+            "content_preview": ".    Section 295868    THESIS/PORTFOLIO869  Section 296870  (1) 871The thesis is a written academic paper corresponding to a given major, which proves"
+          },
+          {
+            "score": 0.7351073622703552,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 280,
+            "content_preview": ".  (2) The submission deadline of the thesis cannot be modified. Exceeding the deadline shall  result in the cancellation of the final exam registrati"
+          },
+          {
+            "score": 0.743626594543457,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 177,
+            "content_preview": ". The application form and the proof of completion shall be submitted  electronically to the instructor in charge of the field studies in line with th"
+          }
+        ],
+        "avg_distance": 0.7374532620112101,
+        "min_distance": 0.7336258292198181
+      },
+      {
+        "query": "What are the language requirements?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.7949820160865784,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 110,
+            "content_preview": ".   b) proof of foreign-language proficiency in lo less than one language in the form  of a complex [type \u201cC\u201d] intermediate level (B2) state -certifie"
+          },
+          {
+            "score": 0.8064906597137451,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 135,
+            "content_preview": "136    e) feasibility of their research plan,   f) 344 foreign language proficiency as a requirement for admission  and foreign  language proficiency "
+          },
+          {
+            "score": 0.8120889067649841,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 134,
+            "content_preview": "135    e) feasibility of their research plan,   f) 347 foreign language proficiency as a requirement for admission  and foreign  language proficiency "
+          }
+        ],
+        "avg_distance": 0.8045205275217692,
+        "min_distance": 0.7949820160865784
+      },
+      {
+        "query": "Physical education requirements",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.7342387437820435,
+            "source": "About the general physical education subjects.pdf",
+            "page": 1,
+            "content_preview": "What you need to know about physical education courses \u2022 Following the study term, the subjects are 12-13 weeks long, \u2022 a maximum of 3 absences are al"
+          },
+          {
+            "score": 0.7775181531906128,
+            "source": "About the general physical education subjects.pdf",
+            "page": 0,
+            "content_preview": "About the general  physical education subjects \u25aa What you need to know about physical education courses \u25aa How to register for the physical education c"
+          },
+          {
+            "score": 0.977645754814148,
+            "source": "About the general physical education subjects.pdf",
+            "page": 3,
+            "content_preview": "Counting the general physical education subjects towards the absolutory  General physical education subjects can  also be counted in the credit value "
+          }
+        ],
+        "avg_distance": 0.8298008839289347,
+        "min_distance": 0.7342387437820435
+      },
+      {
+        "query": "How to apply for joint PhD programs?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.6682965755462646,
+            "source": "doctoral_regulations_ELTE_01.09.2025.pdf",
+            "page": 50,
+            "content_preview": ".    Joint Doctoral Programme    Section 77    Doctoral schools may organise joint doctoral programmes with foreign universities aimed at the  joint t"
+          },
+          {
+            "score": 0.6818556785583496,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 50,
+            "content_preview": "51    Joint Doctoral Programme    Section 77    Doctoral schools may organise joint doctoral programmes with foreign universities aimed at the  joint "
+          },
+          {
+            "score": 0.7046223878860474,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 49,
+            "content_preview": ".   (5) The educational authority shall register the agreement and the programme in accordance with the general  rules applicable to launching program"
+          }
+        ],
+        "avg_distance": 0.6849248806635538,
+        "min_distance": 0.6682965755462646
+      },
+      {
+        "query": "What is the comprehensive examination?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.4827118217945099,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 19,
+            "content_preview": ". Seminar: practice based primarily on the oral communication between the instructor and  the Student. The Student\u2019s achievement is assessed continuou"
+          },
+          {
+            "score": 0.49944573640823364,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 182,
+            "content_preview": "183    research topics and tested in given exams and the makeup of the exam committees shall be  taken by the TTDT.   (3) The comprehensive exams shal"
+          },
+          {
+            "score": 0.500698447227478,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 183,
+            "content_preview": "184    research topics and tested in given exams and the makeup of the exam committees shall be  taken by the TTDT.   (3) The comprehensive exams shal"
+          }
+        ],
+        "avg_distance": 0.49428533514340717,
+        "min_distance": 0.4827118217945099
+      },
+      {
+        "query": "Internship requirements for students",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.6813123822212219,
+            "source": "The Internship.pdf",
+            "page": 0,
+            "content_preview": "The  Internship"
+          },
+          {
+            "score": 0.7652161121368408,
+            "source": "ELTE-JOKT-2021-02-04-TVSZ-EN.pdf",
+            "page": 3,
+            "content_preview": "4  students must be notified by the end of  the first week of the study period.\u201d  students of possible changes to the rules  on the completion of the "
+          },
+          {
+            "score": 0.7830175161361694,
+            "source": "The Internship.pdf",
+            "page": 11,
+            "content_preview": ". The following subjects can be accepted as internship: \u2022 Data Science: Data Science Lab I & II. \u2022 Cybersecurity specialisation: Cyber Security Lab I."
+          }
+        ],
+        "avg_distance": 0.7431820034980774,
+        "min_distance": 0.6813123822212219
+      }
+    ],
+    "overall_avg_distance": 0.7245063868661721,
+    "overall_min_distance": 0.4827118217945099
+  },
+  {
+    "experiment": "exp2_minilm_normalized",
+    "metadata": {
+      "name": "exp2_minilm_normalized",
+      "timestamp": "2025-12-20T15:43:11.412980",
+      "model": "all-MiniLM-L6-v2",
+      "model_key": "minilm",
+      "cleaning_strategy": "normalized",
+      "chunk_config": {
+        "chunk_size": 800,
+        "chunk_overlap": 100,
+        "separators": [
+          "\n\n",
+          "\n",
+          ".",
+          " ",
+          ""
+        ]
+      },
+      "chunk_key": "default",
+      "total_documents": 1168,
+      "total_chunks": 5724
+    },
+    "queries": [
+      {
+        "query": "What are the requirements for doctoral studies?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.587319552898407,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 104,
+            "content_preview": "to granting a Student permission to take the comprehensive examination and the passage of the comprehensive examination at the given doctoral school, "
+          },
+          {
+            "score": 0.587319552898407,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 105,
+            "content_preview": "to granting a Student permission to take the comprehensive examination and the passage of the comprehensive examination at the given doctoral school, "
+          },
+          {
+            "score": 0.6666170954704285,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 18,
+            "content_preview": ". (3) The training plan of the doctoral school and the doctoral programme shall include a) indication of the Masters\u2019 degrees or other university degr"
+          }
+        ],
+        "avg_distance": 0.6137520670890808,
+        "min_distance": 0.587319552898407
+      },
+      {
+        "query": "How do I enroll in courses?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.8677507638931274,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 14,
+            "content_preview": ". The type and features of the course are identical to those of the study unit for whose completion it serves (time frame, number of contact hours, ty"
+          },
+          {
+            "score": 0.8796954154968262,
+            "source": "ELTE-JOKT-2020-09-07-TVSZ-hybrid.pdf",
+            "page": 2,
+            "content_preview": ". If the faculty offers several courses for a given activity within a semester, which can be completed either online or in person"
+          },
+          {
+            "score": 0.8805853128433228,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 113,
+            "content_preview": ". The Student may complete the courses by providing professional verification of the studies completed at the partner institution or on the basis of c"
+          }
+        ],
+        "avg_distance": 0.8760104974110922,
+        "min_distance": 0.8677507638931274
+      },
+      {
+        "query": "What is the thesis submission process?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.7336258292198181,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 190,
+            "content_preview": ". Section 295868 THESIS/PORTFOLIO869 Section 296870 (1) 871The thesis is a written academic paper corresponding to a given major, which proves that th"
+          },
+          {
+            "score": 0.743626594543457,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 177,
+            "content_preview": ". The application form and the proof of completion shall be submitted electronically to the instructor in charge of the field studies in line with the"
+          },
+          {
+            "score": 0.7592979669570923,
+            "source": "Thesis.pdf",
+            "page": 0,
+            "content_preview": "The thesis \u25aa Essential information about thesis upload \u25aa Plagiarism \u25aa Thesis upload step-by \u2013step \u25aa The Encryption of the Thesis \u25aa Additional informat"
+          }
+        ],
+        "avg_distance": 0.7455167969067892,
+        "min_distance": 0.7336258292198181
+      },
+      {
+        "query": "What are the language requirements?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.7949820756912231,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 110,
+            "content_preview": ". b) proof of foreign-language proficiency in lo less than one language in the form of a complex [type \u201cC\u201d] intermediate level (B2) state -certified l"
+          },
+          {
+            "score": 0.8064906597137451,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 135,
+            "content_preview": "136 e) feasibility of their research plan, f) 344 foreign language proficiency as a requirement for admission  and foreign language proficiency which "
+          },
+          {
+            "score": 0.8120889067649841,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 134,
+            "content_preview": "135 e) feasibility of their research plan, f) 347 foreign language proficiency as a requirement for admission  and foreign language proficiency which "
+          }
+        ],
+        "avg_distance": 0.8045205473899841,
+        "min_distance": 0.7949820756912231
+      },
+      {
+        "query": "Physical education requirements",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.7342387437820435,
+            "source": "About the general physical education subjects.pdf",
+            "page": 1,
+            "content_preview": "What you need to know about physical education courses \u2022 Following the study term, the subjects are 12-13 weeks long, \u2022 a maximum of 3 absences are al"
+          },
+          {
+            "score": 0.7775181531906128,
+            "source": "About the general physical education subjects.pdf",
+            "page": 0,
+            "content_preview": "About the general physical education subjects \u25aa What you need to know about physical education courses \u25aa How to register for the physical education co"
+          },
+          {
+            "score": 0.977645754814148,
+            "source": "About the general physical education subjects.pdf",
+            "page": 3,
+            "content_preview": "Counting the general physical education subjects towards the absolutory General physical education subjects can also be counted in the credit value of"
+          }
+        ],
+        "avg_distance": 0.8298008839289347,
+        "min_distance": 0.7342387437820435
+      },
+      {
+        "query": "How to apply for joint PhD programs?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.6682965755462646,
+            "source": "doctoral_regulations_ELTE_01.09.2025.pdf",
+            "page": 50,
+            "content_preview": ". Joint Doctoral Programme Section 77 Doctoral schools may organise joint doctoral programmes with foreign universities aimed at the joint training of"
+          },
+          {
+            "score": 0.6818556785583496,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 50,
+            "content_preview": "51 Joint Doctoral Programme Section 77 Doctoral schools may organise joint doctoral programmes with foreign universities aimed at the joint training o"
+          },
+          {
+            "score": 0.7046223878860474,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 49,
+            "content_preview": ". (5) The educational authority shall register the agreement and the programme in accordance with the general rules applicable to launching programmes"
+          }
+        ],
+        "avg_distance": 0.6849248806635538,
+        "min_distance": 0.6682965755462646
+      },
+      {
+        "query": "What is the comprehensive examination?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.4827118217945099,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 19,
+            "content_preview": ". Seminar: practice based primarily on the oral communication between the instructor and the Student. The Student\u2019s achievement is assessed continuous"
+          },
+          {
+            "score": 0.49944573640823364,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 182,
+            "content_preview": "183 research topics and tested in given exams and the makeup of the exam committees shall be taken by the TTDT. (3) The comprehensive exams shall be s"
+          },
+          {
+            "score": 0.500698447227478,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 183,
+            "content_preview": "184 research topics and tested in given exams and the makeup of the exam committees shall be taken by the TTDT. (3) The comprehensive exams shall be s"
+          }
+        ],
+        "avg_distance": 0.49428533514340717,
+        "min_distance": 0.4827118217945099
+      },
+      {
+        "query": "Internship requirements for students",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.6813123822212219,
+            "source": "The Internship.pdf",
+            "page": 0,
+            "content_preview": "The Internship"
+          },
+          {
+            "score": 0.7652161121368408,
+            "source": "ELTE-JOKT-2021-02-04-TVSZ-EN.pdf",
+            "page": 3,
+            "content_preview": "4 students must be notified by the end of the first week of the study period.\u201d students of possible changes to the rules on the completion of the mand"
+          },
+          {
+            "score": 0.7830175161361694,
+            "source": "The Internship.pdf",
+            "page": 11,
+            "content_preview": ". The following subjects can be accepted as internship: \u2022 Data Science: Data Science Lab I & II. \u2022 Cybersecurity specialisation: Cyber Security Lab I."
+          }
+        ],
+        "avg_distance": 0.7431820034980774,
+        "min_distance": 0.6813123822212219
+      }
+    ],
+    "overall_avg_distance": 0.7239991265038649,
+    "overall_min_distance": 0.4827118217945099
+  },
+  {
+    "experiment": "exp3_minilm_minimal",
+    "metadata": {
+      "name": "exp3_minilm_minimal",
+      "timestamp": "2025-12-20T15:45:16.785310",
+      "model": "all-MiniLM-L6-v2",
+      "model_key": "minilm",
+      "cleaning_strategy": "minimal",
+      "chunk_config": {
+        "chunk_size": 800,
+        "chunk_overlap": 100,
+        "separators": [
+          "\n\n",
+          "\n",
+          ".",
+          " ",
+          ""
+        ]
+      },
+      "chunk_key": "default",
+      "total_documents": 1168,
+      "total_chunks": 5721
+    },
+    "queries": [
+      {
+        "query": "What are the requirements for doctoral studies?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.587319552898407,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 104,
+            "content_preview": "to granting a Student permission to take the comprehensive examination and the passage of the comprehensive examination at the given doctoral school, "
+          },
+          {
+            "score": 0.587319552898407,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 105,
+            "content_preview": "to granting a Student permission to take the comprehensive examination and the passage of the comprehensive examination at the given doctoral school, "
+          },
+          {
+            "score": 0.6666170954704285,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 18,
+            "content_preview": ". (3) The training plan of the doctoral school and the doctoral programme shall include a) indication of the Masters\u2019 degrees or other university degr"
+          }
+        ],
+        "avg_distance": 0.6137520670890808,
+        "min_distance": 0.587319552898407
+      },
+      {
+        "query": "How do I enroll in courses?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.8677507638931274,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 14,
+            "content_preview": ". The type and features of the course are identical to those of the study unit for whose completion it serves (time frame, number of contact hours, ty"
+          },
+          {
+            "score": 0.8796954154968262,
+            "source": "ELTE-JOKT-2020-09-07-TVSZ-hybrid.pdf",
+            "page": 2,
+            "content_preview": ". If the faculty offers several courses for a given activity within a semester, which can be completed either online or in person"
+          },
+          {
+            "score": 0.8805853128433228,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 113,
+            "content_preview": ". The Student may complete the courses by providing professional verification of the studies completed at the partner institution or on the basis of c"
+          }
+        ],
+        "avg_distance": 0.8760104974110922,
+        "min_distance": 0.8677507638931274
+      },
+      {
+        "query": "What is the thesis submission process?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.7336258292198181,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 190,
+            "content_preview": ". Section 295868 THESIS/PORTFOLIO869 Section 296870 (1) 871The thesis is a written academic paper corresponding to a given major, which proves that th"
+          },
+          {
+            "score": 0.743626594543457,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 177,
+            "content_preview": ". The application form and the proof of completion shall be submitted electronically to the instructor in charge of the field studies in line with the"
+          },
+          {
+            "score": 0.7592979669570923,
+            "source": "Thesis.pdf",
+            "page": 0,
+            "content_preview": "The thesis \u25aa Essential information about thesis upload \u25aa Plagiarism \u25aa Thesis upload step-by \u2013step \u25aa The Encryption of the Thesis \u25aa Additional informat"
+          }
+        ],
+        "avg_distance": 0.7455167969067892,
+        "min_distance": 0.7336258292198181
+      },
+      {
+        "query": "What are the language requirements?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.7949820756912231,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 110,
+            "content_preview": ". b) proof of foreign-language proficiency in lo less than one language in the form of a complex [type \u201cC\u201d] intermediate level (B2) state -certified l"
+          },
+          {
+            "score": 0.8064906597137451,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 135,
+            "content_preview": "136 e) feasibility of their research plan, f) 344 foreign language proficiency as a requirement for admission and foreign language proficiency which e"
+          },
+          {
+            "score": 0.8120889067649841,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 134,
+            "content_preview": "135 e) feasibility of their research plan, f) 347 foreign language proficiency as a requirement for admission and foreign language proficiency which e"
+          }
+        ],
+        "avg_distance": 0.8045205473899841,
+        "min_distance": 0.7949820756912231
+      },
+      {
+        "query": "Physical education requirements",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.7342387437820435,
+            "source": "About the general physical education subjects.pdf",
+            "page": 1,
+            "content_preview": "What you need to know about physical education courses \u2022 Following the study term, the subjects are 12-13 weeks long, \u2022 a maximum of 3 absences are al"
+          },
+          {
+            "score": 0.7775181531906128,
+            "source": "About the general physical education subjects.pdf",
+            "page": 0,
+            "content_preview": "About the general physical education subjects \u25aa What you need to know about physical education courses \u25aa How to register for the physical education co"
+          },
+          {
+            "score": 0.977645754814148,
+            "source": "About the general physical education subjects.pdf",
+            "page": 3,
+            "content_preview": "Counting the general physical education subjects towards the absolutory General physical education subjects can also be counted in the credit value of"
+          }
+        ],
+        "avg_distance": 0.8298008839289347,
+        "min_distance": 0.7342387437820435
+      },
+      {
+        "query": "How to apply for joint PhD programs?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.6682965755462646,
+            "source": "doctoral_regulations_ELTE_01.09.2025.pdf",
+            "page": 50,
+            "content_preview": ". Joint Doctoral Programme Section 77 Doctoral schools may organise joint doctoral programmes with foreign universities aimed at the joint training of"
+          },
+          {
+            "score": 0.6818556785583496,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 50,
+            "content_preview": "51 Joint Doctoral Programme Section 77 Doctoral schools may organise joint doctoral programmes with foreign universities aimed at the joint training o"
+          },
+          {
+            "score": 0.7046223878860474,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 49,
+            "content_preview": ". (5) The educational authority shall register the agreement and the programme in accordance with the general rules applicable to launching programmes"
+          }
+        ],
+        "avg_distance": 0.6849248806635538,
+        "min_distance": 0.6682965755462646
+      },
+      {
+        "query": "What is the comprehensive examination?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.4827118217945099,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 19,
+            "content_preview": ". Seminar: practice based primarily on the oral communication between the instructor and the Student. The Student\u2019s achievement is assessed continuous"
+          },
+          {
+            "score": 0.49944573640823364,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 182,
+            "content_preview": "183 research topics and tested in given exams and the makeup of the exam committees shall be taken by the TTDT. (3) The comprehensive exams shall be s"
+          },
+          {
+            "score": 0.500698447227478,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 183,
+            "content_preview": "184 research topics and tested in given exams and the makeup of the exam committees shall be taken by the TTDT. (3) The comprehensive exams shall be s"
+          }
+        ],
+        "avg_distance": 0.49428533514340717,
+        "min_distance": 0.4827118217945099
+      },
+      {
+        "query": "Internship requirements for students",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.6813123822212219,
+            "source": "The Internship.pdf",
+            "page": 0,
+            "content_preview": "The Internship"
+          },
+          {
+            "score": 0.7652161121368408,
+            "source": "ELTE-JOKT-2021-02-04-TVSZ-EN.pdf",
+            "page": 3,
+            "content_preview": "4 students must be notified by the end of the first week of the study period.\u201d students of possible changes to the rules on the completion of the mand"
+          },
+          {
+            "score": 0.7830175161361694,
+            "source": "The Internship.pdf",
+            "page": 11,
+            "content_preview": ". The following subjects can be accepted as internship: \u2022 Data Science: Data Science Lab I & II. \u2022 Cybersecurity specialisation: Cyber Security Lab I."
+          }
+        ],
+        "avg_distance": 0.7431820034980774,
+        "min_distance": 0.6813123822212219
+      }
+    ],
+    "overall_avg_distance": 0.7239991265038649,
+    "overall_min_distance": 0.4827118217945099
+  },
+  {
+    "experiment": "exp4_mpnet_normalized",
+    "metadata": {
+      "name": "exp4_mpnet_normalized",
+      "timestamp": "2025-12-20T15:47:20.598038",
+      "model": "all-mpnet-base-v2",
+      "model_key": "mpnet",
+      "cleaning_strategy": "normalized",
+      "chunk_config": {
+        "chunk_size": 800,
+        "chunk_overlap": 100,
+        "separators": [
+          "\n\n",
+          "\n",
+          ".",
+          " ",
+          ""
+        ]
+      },
+      "chunk_key": "default",
+      "total_documents": 1168,
+      "total_chunks": 5724
+    },
+    "queries": [
+      {
+        "query": "What are the requirements for doctoral studies?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.5395982265472412,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 173,
+            "content_preview": ". (4) 459Eligibility for a dmission to the doctoral programme  requires a Master's degree and professional qualifications and a complex language exam "
+          },
+          {
+            "score": 0.5822011232376099,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 174,
+            "content_preview": ". (4) 456Eligibility for a dmission to the doctoral programme  requires a Master's degree and professional qualifications and a complex language exam "
+          },
+          {
+            "score": 0.592275857925415,
+            "source": "doctoral_regulations_ELTE_01.09.2025.pdf",
+            "page": 176,
+            "content_preview": ". (4) 508Eligibility for a dmission to the doctoral programme  requires a Master's degree and professional qualifications and a complex language exam "
+          }
+        ],
+        "avg_distance": 0.5713584025700887,
+        "min_distance": 0.5395982265472412
+      },
+      {
+        "query": "How do I enroll in courses?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.8331407308578491,
+            "source": "enrolment guide.pdf",
+            "page": 3,
+            "content_preview": ". Book an appointment 3. Prepare your documents; print your Enrolment sheet. 4. Show up for the appointment well-prepared. \u263a About the enrolment proce"
+          },
+          {
+            "score": 0.8845544457435608,
+            "source": "enrolment guide.pdf",
+            "page": 1,
+            "content_preview": "Enrolment Welcome on board! Enrolment is an essential part of becoming a student. You\u2019ll need to be enrolled to be able to attend your study programme"
+          },
+          {
+            "score": 0.9007930755615234,
+            "source": "enrolment guide.pdf",
+            "page": 6,
+            "content_preview": "Registration for the semester (activation of student status) Click on Enroll and a pop-up menu will appear. Set your status to Active, and click Save."
+          }
+        ],
+        "avg_distance": 0.8728294173876444,
+        "min_distance": 0.8331407308578491
+      },
+      {
+        "query": "What is the thesis submission process?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.7064679861068726,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 190,
+            "content_preview": ". Section 295868 THESIS/PORTFOLIO869 Section 296870 (1) 871The thesis is a written academic paper corresponding to a given major, which proves that th"
+          },
+          {
+            "score": 0.7797369360923767,
+            "source": "Thesis.pdf",
+            "page": 4,
+            "content_preview": "Thesis IMPORTANT INFORMATION Section 381 and Section 79 (1) If the Supervisor does not accept the degree thesis, it cannot be submitted. Based on the "
+          },
+          {
+            "score": 0.7830688953399658,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 191,
+            "content_preview": ". The deadline for publishing the list of topics: 15 October every academic year. (3)876 (4)877 The supervisor can be a faculty lecturer, a faculty re"
+          }
+        ],
+        "avg_distance": 0.756424605846405,
+        "min_distance": 0.7064679861068726
+      },
+      {
+        "query": "What are the language requirements?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.676927924156189,
+            "source": "doctoral_regulations_ELTE_01.09.2025.pdf",
+            "page": 111,
+            "content_preview": ". b) proof of foreign-language proficiency in lo less than one language in the form of a complex [type \u201cC\u201d] intermediate level (B2) state -certified l"
+          },
+          {
+            "score": 0.6984394192695618,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 277,
+            "content_preview": ". The requirements shall be announced in the first lesson. (2) First Proficiency Exam: an exam held after completing at least two semesters, assessing"
+          },
+          {
+            "score": 0.6999087333679199,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 121,
+            "content_preview": "122 b) proof of foreign-language proficiency in the form of a complex advanced level (C1) state-certified (or equivalent) language exam certificate, c"
+          }
+        ],
+        "avg_distance": 0.6917586922645569,
+        "min_distance": 0.676927924156189
+      },
+      {
+        "query": "Physical education requirements",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.7959252595901489,
+            "source": "About the general physical education subjects.pdf",
+            "page": 0,
+            "content_preview": "About the general physical education subjects \u25aa What you need to know about physical education courses \u25aa How to register for the physical education co"
+          },
+          {
+            "score": 0.8018416166305542,
+            "source": "About the general physical education subjects.pdf",
+            "page": 3,
+            "content_preview": "Counting the general physical education subjects towards the absolutory General physical education subjects can also be counted in the credit value of"
+          },
+          {
+            "score": 0.845617413520813,
+            "source": "About the general physical education subjects.pdf",
+            "page": 1,
+            "content_preview": "What you need to know about physical education courses \u2022 Following the study term, the subjects are 12-13 weeks long, \u2022 a maximum of 3 absences are al"
+          }
+        ],
+        "avg_distance": 0.8144614299138387,
+        "min_distance": 0.7959252595901489
+      },
+      {
+        "query": "How to apply for joint PhD programs?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.9498811960220337,
+            "source": "doctoral_regulations_ELTE_01.09.2025.pdf",
+            "page": 50,
+            "content_preview": ". Joint Doctoral Programme Section 77 Doctoral schools may organise joint doctoral programmes with foreign universities aimed at the joint training of"
+          },
+          {
+            "score": 0.9728737473487854,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 50,
+            "content_preview": "51 Joint Doctoral Programme Section 77 Doctoral schools may organise joint doctoral programmes with foreign universities aimed at the joint training o"
+          },
+          {
+            "score": 0.9849257469177246,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 49,
+            "content_preview": ". (5) The educational authority shall register the agreement and the programme in accordance with the general rules applicable to launching programmes"
+          }
+        ],
+        "avg_distance": 0.9692268967628479,
+        "min_distance": 0.9498811960220337
+      },
+      {
+        "query": "What is the comprehensive examination?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.4325486719608307,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 197,
+            "content_preview": ". (3) The comprehensive examination shall be taken in public, in front of an exam committee. The committee shall consist of at least three members, at"
+          },
+          {
+            "score": 0.43673285841941833,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 32,
+            "content_preview": ". THE COMPREHENSIVE EXAMINATION [\u2026]71 [\u2026]72 Section 48 (1) The comprehensive examination is a comprehensive evaluation of the Student\u2019s knowledge acqu"
+          },
+          {
+            "score": 0.44094914197921753,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 32,
+            "content_preview": ". THE COMPREHENSIVE EXAMINATION [\u2026]69 [\u2026]70 Section 48 (1) The comprehensive examination is a comprehensive evaluation of the Student\u2019s knowledge acqu"
+          }
+        ],
+        "avg_distance": 0.4367435574531555,
+        "min_distance": 0.4325486719608307
+      },
+      {
+        "query": "Internship requirements for students",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.7450569272041321,
+            "source": "The Internship.pdf",
+            "page": 1,
+            "content_preview": "Accomplishing an internship In 5 steps Initiating a Cooperation Agreement between the University and the employer Initiating a Cooperation Agreement b"
+          },
+          {
+            "score": 0.7605804204940796,
+            "source": "The Internship.pdf",
+            "page": 1,
+            "content_preview": ". Initiating a Cooperation Agreement between the University and the employer 2. The employer issues the Declaration of Acceptance that has to be accep"
+          },
+          {
+            "score": 0.7756121158599854,
+            "source": "The Internship.pdf",
+            "page": 8,
+            "content_preview": "Accomplish your internship \u25aa To accomplish your internship you have to work at least the following working hours: \u2022 Bachelor of Computer Science: 320 "
+          }
+        ],
+        "avg_distance": 0.7604164878527323,
+        "min_distance": 0.7450569272041321
+      }
+    ],
+    "overall_avg_distance": 0.7341524362564087,
+    "overall_min_distance": 0.4325486719608307
+  },
+  {
+    "experiment": "exp5_minilm_normalized_small",
+    "metadata": {
+      "name": "exp5_minilm_normalized_small",
+      "timestamp": "2025-12-20T15:58:37.355528",
+      "model": "all-MiniLM-L6-v2",
+      "model_key": "minilm",
+      "cleaning_strategy": "normalized",
+      "chunk_config": {
+        "chunk_size": 500,
+        "chunk_overlap": 50,
+        "separators": [
+          "\n\n",
+          "\n",
+          ".",
+          " ",
+          ""
+        ]
+      },
+      "chunk_key": "small",
+      "total_documents": 1168,
+      "total_chunks": 9326
+    },
+    "queries": [
+      {
+        "query": "What are the requirements for doctoral studies?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.5131934881210327,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 104,
+            "content_preview": "the doctoral degree, in particular with regard to the literature requirements and the content, formal, length and language requirements pertaining to "
+          },
+          {
+            "score": 0.5131934881210327,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 105,
+            "content_preview": "the doctoral degree, in particular with regard to the literature requirements and the content, formal, length and language requirements pertaining to "
+          },
+          {
+            "score": 0.5724108219146729,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 21,
+            "content_preview": "22 [\u2026]38 [\u2026]39 [\u2026]40 [\u2026]41 Nftv. Article 40 (6) Applicants admitted to a doctoral programme must have a Master's degree and qualifications as well as "
+          }
+        ],
+        "avg_distance": 0.5329325993855795,
+        "min_distance": 0.5131934881210327
+      },
+      {
+        "query": "How do I enroll in courses?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.8323651552200317,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 14,
+            "content_preview": ". The course\u2019s content may be derived or free; 48. 53 Course registration: at the beginning of each semester, the student must register in the Electro"
+          },
+          {
+            "score": 0.8530645966529846,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 31,
+            "content_preview": ". (2) The course list groups the courses required for obtaining a diploma according to their module (or, if prescribed by law, according to the traini"
+          },
+          {
+            "score": 0.8703457117080688,
+            "source": "doctoral_regulations_ELTE_01.09.2025.pdf",
+            "page": 118,
+            "content_preview": ". At the Student\u2019s request, the Faculty Office shall register a given subject for a fee up until the end of the first week following the course regist"
+          }
+        ],
+        "avg_distance": 0.8519251545270284,
+        "min_distance": 0.8323651552200317
+      },
+      {
+        "query": "What is the thesis submission process?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.6425564885139465,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 83,
+            "content_preview": ". The students must be notified of this in time. (6) 412 The decision to approve or reject the Student\u2019s chosen thesis topic, taken in line with the F"
+          },
+          {
+            "score": 0.6518561244010925,
+            "source": "Thesis Consultation.pdf",
+            "page": 1,
+            "content_preview": ". Preparing the work schedule for the thesis. \u2022 Discussing the topic and the short description of the thesis with the supervisor, checking the data of"
+          },
+          {
+            "score": 0.66695237159729,
+            "source": "Thesis.pdf",
+            "page": 14,
+            "content_preview": ". \u25aa The opponent of the thesis will evaluate the thesis and deliver the preliminary thesis opinion to the student via Neptun. Since the evaluation par"
+          }
+        ],
+        "avg_distance": 0.6537883281707764,
+        "min_distance": 0.6425564885139465
+      },
+      {
+        "query": "What are the language requirements?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.7662954926490784,
+            "source": "doctoral_regulations_ELTE_01.09.2025.pdf",
+            "page": 142,
+            "content_preview": ". The applicants' proficiency in the languages required for the given academic field and the programme, as well as the document certifying their profi"
+          },
+          {
+            "score": 0.7734195590019226,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 134,
+            "content_preview": "document for a foreign language relevant to the discipline, g) in the cases of international applicants, the admission committee shall assess whether "
+          },
+          {
+            "score": 0.7734195590019226,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 135,
+            "content_preview": "document for a foreign language relevant to the discipline, g) in the cases of international applicants, the admission committee shall assess whether "
+          }
+        ],
+        "avg_distance": 0.7710448702176412,
+        "min_distance": 0.7662954926490784
+      },
+      {
+        "query": "Physical education requirements",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.7115267515182495,
+            "source": "About the general physical education subjects.pdf",
+            "page": 1,
+            "content_preview": "What you need to know about physical education courses \u2022 Following the study term, the subjects are 12-13 weeks long, \u2022 a maximum of 3 absences are al"
+          },
+          {
+            "score": 0.7775181531906128,
+            "source": "About the general physical education subjects.pdf",
+            "page": 0,
+            "content_preview": "About the general physical education subjects \u25aa What you need to know about physical education courses \u25aa How to register for the physical education co"
+          },
+          {
+            "score": 0.7992119789123535,
+            "source": "About the general physical education subjects.pdf",
+            "page": 1,
+            "content_preview": ". \u2022 The credit value of a completed course is 1 credit, (up to a total of 4 credits) physical education can be counted towards the elective subjects, "
+          }
+        ],
+        "avg_distance": 0.7627522945404053,
+        "min_distance": 0.7115267515182495
+      },
+      {
+        "query": "How to apply for joint PhD programs?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.6285487413406372,
+            "source": "doctoral_regulations_ELTE_01.09.2025.pdf",
+            "page": 50,
+            "content_preview": ". (5) The education authority shall register the agreement and the program in accordance with the general rules applicable to launching programs. Join"
+          },
+          {
+            "score": 0.6309120655059814,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 50,
+            "content_preview": "51 Joint Doctoral Programme Section 77 Doctoral schools may organise joint doctoral programmes with foreign universities aimed at the joint training o"
+          },
+          {
+            "score": 0.6783492565155029,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 49,
+            "content_preview": ". (5) The educational authority shall register the agreement and the programme in accordance with the general rules applicable to launching programmes"
+          }
+        ],
+        "avg_distance": 0.6459366877873739,
+        "min_distance": 0.6285487413406372
+      },
+      {
+        "query": "What is the comprehensive examination?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.34919995069503784,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 277,
+            "content_preview": ". (3) Comprehensive examination: a synthesizing exam held in a two-semester subject before an at least two-member committee, which assesses the studen"
+          },
+          {
+            "score": 0.35183000564575195,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 32,
+            "content_preview": ". THE COMPREHENSIVE EXAMINATION [\u2026]69 [\u2026]70 Section 48 (1) The comprehensive examination is a comprehensive evaluation of the Student\u2019s knowledge acqu"
+          },
+          {
+            "score": 0.4092475175857544,
+            "source": "doctoral_regulations_ELTE_01.09.2025.pdf",
+            "page": 214,
+            "content_preview": ". The Comprehensive Examination Section 25 (1) The comprehensive examination is a comprehensive evaluation of the student\u2019s knowledge acquired in the "
+          }
+        ],
+        "avg_distance": 0.3700924913088481,
+        "min_distance": 0.34919995069503784
+      },
+      {
+        "query": "Internship requirements for students",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.6813123226165771,
+            "source": "The Internship.pdf",
+            "page": 0,
+            "content_preview": "The Internship"
+          },
+          {
+            "score": 0.7420551180839539,
+            "source": "The Internship.pdf",
+            "page": 2,
+            "content_preview": ". \u25aa You do not have to complete your internship during the study term. As it does not have a credit value we recommend you to accomplish your internsh"
+          },
+          {
+            "score": 0.7538279294967651,
+            "source": "The Internship.pdf",
+            "page": 3,
+            "content_preview": "The employer issues the Declaration of Acceptance which has to be accepted by the University Make sure to have a valid Cooperation Agreement between t"
+          }
+        ],
+        "avg_distance": 0.7257317900657654,
+        "min_distance": 0.6813123226165771
+      }
+    ],
+    "overall_avg_distance": 0.6642755270004272,
+    "overall_min_distance": 0.34919995069503784
+  },
+  {
+    "experiment": "exp6_minilm_normalized_large",
+    "metadata": {
+      "name": "exp6_minilm_normalized_large",
+      "timestamp": "2025-12-20T16:01:08.753190",
+      "model": "all-MiniLM-L6-v2",
+      "model_key": "minilm",
+      "cleaning_strategy": "normalized",
+      "chunk_config": {
+        "chunk_size": 1200,
+        "chunk_overlap": 150,
+        "separators": [
+          "\n\n",
+          "\n",
+          ".",
+          " ",
+          ""
+        ]
+      },
+      "chunk_key": "large",
+      "total_documents": 1168,
+      "total_chunks": 3841
+    },
+    "queries": [
+      {
+        "query": "What are the requirements for doctoral studies?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.5247009992599487,
+            "source": "doctoral_regulations_ELTE_01.09.2025.pdf",
+            "page": 105,
+            "content_preview": "and the passage of the comprehensive examination at the given doctoral school, q) the professional requirements for obtaining the doctoral degree, in "
+          },
+          {
+            "score": 0.5753793716430664,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 152,
+            "content_preview": ". The requirement types and volumes of the doctoral programme are as follows: a) three subject modules 84 credits (33%) b) comprehensive examination 1"
+          },
+          {
+            "score": 0.5753793716430664,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 153,
+            "content_preview": ". The requirement types and volumes of the doctoral programme are as follows: a) three subject modules 84 credits (33%) b) comprehensive examination 1"
+          }
+        ],
+        "avg_distance": 0.5584865808486938,
+        "min_distance": 0.5247009992599487
+      },
+      {
+        "query": "How do I enroll in courses?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.8820147514343262,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 172,
+            "content_preview": ". Section 226 (1) The categories of courses held at the Faculty: obligatory, elective (alternative) and optional (facultative). (2) A course is obliga"
+          },
+          {
+            "score": 0.9017433524131775,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 14,
+            "content_preview": ". The course, depending on its type, is usually held at a specific place and time by a specific instructor (including online and blended courses). The"
+          },
+          {
+            "score": 0.9038681983947754,
+            "source": "ELTE_SZMSZ_II_EN.pdf",
+            "page": 29,
+            "content_preview": ". (2a) 126 The course may be organised in the following forms: a) a course requiring the student\u2019s in-person attendance (hereinafter: in-person course"
+          }
+        ],
+        "avg_distance": 0.8958754340807596,
+        "min_distance": 0.8820147514343262
+      },
+      {
+        "query": "What is the thesis submission process?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.732807993888855,
+            "source": "Thesis.pdf",
+            "page": 1,
+            "content_preview": "The Thesis \u25aa The formal requirements of the thesis are different by the training programme: For further information please follow the LINK. \u25aa Deadline"
+          },
+          {
+            "score": 0.74395352602005,
+            "source": "4-2022 (VII.25.) rektori utas\u00edt\u00e1s - co-tutelle meg\u00e1llapod\u00e1s minta - angol.pdf",
+            "page": 9,
+            "content_preview": ". SUBMISSION AND DEFENCE OF THE DOCTORAL DISSERTATION Conditions for submitting the dissertation The condition for submitting the doctoral dissertatio"
+          },
+          {
+            "score": 0.7458987236022949,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 198,
+            "content_preview": "199 (3) The dissertation may only be submitted with the approval of the topic supervisor and the head of the doctoral educational programme. In accord"
+          }
+        ],
+        "avg_distance": 0.7408867478370667,
+        "min_distance": 0.732807993888855
+      },
+      {
+        "query": "What are the language requirements?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.8221830129623413,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 135,
+            "content_preview": "136 e) feasibility of their research plan, f) 344 foreign language proficiency as a requirement for admission  and foreign language proficiency which "
+          },
+          {
+            "score": 0.8244724273681641,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 134,
+            "content_preview": "135 e) feasibility of their research plan, f) 347 foreign language proficiency as a requirement for admission  and foreign language proficiency which "
+          },
+          {
+            "score": 0.8484082221984863,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 140,
+            "content_preview": ". New opponents are not required to be appointed in the event that one or more critique rejects the dissertation. The Applicant shall be allowed to co"
+          }
+        ],
+        "avg_distance": 0.8316878875096639,
+        "min_distance": 0.8221830129623413
+      },
+      {
+        "query": "Physical education requirements",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.7775181531906128,
+            "source": "About the general physical education subjects.pdf",
+            "page": 0,
+            "content_preview": "About the general physical education subjects \u25aa What you need to know about physical education courses \u25aa How to register for the physical education co"
+          },
+          {
+            "score": 0.8230575323104858,
+            "source": "About the general physical education subjects.pdf",
+            "page": 1,
+            "content_preview": "What you need to know about physical education courses \u2022 Following the study term, the subjects are 12-13 weeks long, \u2022 a maximum of 3 absences are al"
+          },
+          {
+            "score": 0.977645754814148,
+            "source": "About the general physical education subjects.pdf",
+            "page": 3,
+            "content_preview": "Counting the general physical education subjects towards the absolutory General physical education subjects can also be counted in the credit value of"
+          }
+        ],
+        "avg_distance": 0.8594071467717489,
+        "min_distance": 0.7775181531906128
+      },
+      {
+        "query": "How to apply for joint PhD programs?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.7046223878860474,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 49,
+            "content_preview": ". (5) The educational authority shall register the agreement and the programme in accordance with the general rules applicable to launching programmes"
+          },
+          {
+            "score": 0.7990259528160095,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 50,
+            "content_preview": "51 Joint Doctoral Programme Section 77 Doctoral schools may organise joint doctoral programmes with foreign universities aimed at the joint training o"
+          },
+          {
+            "score": 0.8122600317001343,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 50,
+            "content_preview": "51 supervision as well as the issuance of joint degrees or double degrees. Provisions laid out in Section 18 of present regulations shall be applicabl"
+          }
+        ],
+        "avg_distance": 0.7719694574673971,
+        "min_distance": 0.7046223878860474
+      },
+      {
+        "query": "What is the comprehensive examination?",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.5238193869590759,
+            "source": "doctoral_regulations_ELTE_20240901.pdf",
+            "page": 32,
+            "content_preview": ". In this case the assessment criteria shall be sp ecified in the curriculum in the case of courses and in the Student\u2019s training plan in the case of "
+          },
+          {
+            "score": 0.5325846672058105,
+            "source": "doctoral_regulations_ELTE_2025.pdf",
+            "page": 32,
+            "content_preview": ". Section 47 (1) Dates of examinations shall be scheduled in a way that allows the Doctoral Student sufficient time to take each exam. (2) In the even"
+          },
+          {
+            "score": 0.5357058048248291,
+            "source": "doctoral_regulations_ELTE_01.09.2025.pdf",
+            "page": 119,
+            "content_preview": ". (8) The comprehensive examination shall be taken in public, before an examination board of the following composition: a) the comprehensive examinati"
+          }
+        ],
+        "avg_distance": 0.5307032863299052,
+        "min_distance": 0.5238193869590759
+      },
+      {
+        "query": "Internship requirements for students",
+        "top_k": 3,
+        "results": [
+          {
+            "score": 0.6813123822212219,
+            "source": "The Internship.pdf",
+            "page": 0,
+            "content_preview": "The Internship"
+          },
+          {
+            "score": 0.8278869390487671,
+            "source": "The Internship.pdf",
+            "page": 2,
+            "content_preview": "Find a suitable company for the internship: You can choose from a wide variety of companies where you can do IT-related tasks under the supervision of"
+          },
+          {
+            "score": 0.8289259672164917,
+            "source": "The Internship.pdf",
+            "page": 6,
+            "content_preview": "Submit the Declaration of Acceptance form issued by your future employer By submitting this declaration your future employer (company) lets the Univer"
+          }
+        ],
+        "avg_distance": 0.7793750961621603,
+        "min_distance": 0.6813123822212219
+      }
+    ],
+    "overall_avg_distance": 0.7460489546259245,
+    "overall_min_distance": 0.5238193869590759
+  }
+]

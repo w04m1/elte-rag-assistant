@@ -1,0 +1,21 @@
+{
+  "name": "exp4_mpnet_normalized",
+  "timestamp": "2025-12-20T16:16:50.244571",
+  "model": "all-mpnet-base-v2",
+  "model_key": "mpnet",
+  "cleaning_strategy": "normalized",
+  "chunk_config": {
+    "chunk_size": 800,
+    "chunk_overlap": 100,
+    "separators": [
+      "\n\n",
+      "\n",
+      ".",
+      " ",
+      ""
+    ]
+  },
+  "chunk_key": "default",
+  "total_documents": 1168,
+  "total_chunks": 5724
+}
