@@ -3,59 +3,89 @@
 skinparam backgroundColor #FEFEF8
 skinparam classBackgroundColor #F0F0F0
 skinparam classBorderColor #333333
+skinparam stereotypeCBackgroundColor #D3D3D3
 
 package "Preprocessing Pipeline (Batch)" #E8F4F8 {
     [PDF Documents] as docs
-    [Ingestion Service\n(PyPDF2/Unstructured)] as ingest
-    [Text Chunking\n(RecursiveCharacterTextSplitter)] as chunk
-    [Embedding Model\n(paraphrase-multilingual-MiniLM)] as embed_model
+    [Docling DocumentConverter\n(PyPdfium2 backend)] as ingest
+    [HybridChunker\n(Docling, token-aware)] as chunk
+    [Embedding Model\n(all-mpnet-base-v2)] as embed_model
     [Vector Store (FAISS)] as vector_db
-    
-    docs --> ingest: extract text
-    ingest --> chunk: split text
+
+    docs --> ingest: extract text & tables
+    ingest --> chunk: split into chunks\n(max_tokens=256, merge_peers)
     chunk --> embed_model: vectorize chunks
     embed_model --> vector_db: store embeddings
 }
 
 package "Runtime Pipeline (Query-Response)" #F8E8F4 {
     [Student User] as user
-    [React Frontend] as frontend
+    [React Frontend] as frontend <<planned M3>>
     [FastAPI Backend] as backend
-    [Query Embedding] as query_embed
-    [Retrieval (Top-K)] as retrieve
-    [LLM Generator\n(GPT-4o / Llama)] as llm
-    [Final Answer\nwith Citations] as response
-    
+    [Query Embedding\n(all-mpnet-base-v2)] as query_embed
+
+    package "Hybrid Retrieval" #F0E0F0 {
+        [FAISS Retriever\n(MMR search)] as faiss_ret
+        [BM25 Retriever\n(keyword search)] as bm25_ret
+        [Reciprocal Rank\nFusion (RRF)] as rrf
+    }
+
+    [LLM Reranker\n(Gemini Flash)] as reranker
+    [LLM Generator\n(Gemini Flash / Llama 3.1)\nvia OpenRouter or Ollama] as llm
+    [Structured Output\n(answer, reasoning,\nconfidence, citations)] as response
+
     user --> frontend: asks question
     frontend --> backend: send query
     backend --> query_embed: embed query
-    query_embed --> vector_db: similarity search
-    vector_db --> retrieve: return context chunks
-    retrieve --> llm: context + query
-    llm --> backend: generated response
+    query_embed --> faiss_ret: similarity search (MMR)
+    query_embed --> bm25_ret: keyword search
+    faiss_ret --> rrf: ranked results
+    bm25_ret --> rrf: ranked results
+    rrf --> reranker: top candidates
+    reranker --> llm: reranked context\n+ query
+    llm --> response: structured JSON
+    response --> backend: RAGResult
     backend --> frontend: JSON response
     frontend --> user: display answer
 }
 
-package "Admin & Management" #F4F8E8 {
+package "Admin & Management" <<planned M3/M4>> #F4F8E8 {
     [Admin Panel\n(React/FastAPI)] as admin
     [Document Manager] as doc_mgr
     [Usage Logger] as logger
-    
+
     admin --> doc_mgr: upload new docs
     doc_mgr --> ingest: trigger reindexing
     backend --> logger: log all queries
 }
 
-vector_db -.-> retrieve: shared access
+package "Prompt Engineering" #FFF8E8 {
+    [System Prompt\n(role + rules)] as sys_prompt
+    [Few-Shot Examples\n(2 Q&A pairs)] as few_shot
+    [Structured Output Schema\n(RAGOutput: reasoning,\nanswer, confidence,\ncited_sources)] as schema
+
+    sys_prompt --> llm
+    few_shot --> llm
+    schema --> llm
+}
+
+vector_db -.-> faiss_ret: shared index
 
 note right of vector_db
     Local FAISS index
-    No external dependencies
+    No external DB dependency
 end note
 
 note right of llm
-    Local or API-based
+    OpenRouter (API) or Ollama (local)
     Configurable per deployment
+    Structured output with
+    plain-string fallback
+end note
+
+note right of reranker
+    LLM-based relevance scoring
+    Configurable model
+    Graceful fallback on failure
 end note
 @enduml
