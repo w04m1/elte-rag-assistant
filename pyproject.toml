@@ -42,10 +42,9 @@ explicit = true
 
 [tool.uv.sources]
 torch = [
-  { index = "pytorch" },
+  { index = "pytorch", marker = "platform_system == 'Linux' and platform_machine == 'x86_64'" },
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-
