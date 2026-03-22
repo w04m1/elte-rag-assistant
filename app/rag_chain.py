@@ -153,17 +153,70 @@ def _extract_sources(docs: list[Document]) -> list[dict[str, Any]]:
     return _build_context_items(docs)
 
 
-def _replace_inline_chunk_citations(answer: str, citation_map: dict[str, dict[str, Any]]) -> str:
-    def replace(match: re.Match[str]) -> str:
-        citation_id = match.group(1).upper()
-        item = citation_map.get(citation_id)
-        if item is None:
-            return match.group(0)
-        if item["page"] is None:
-            return f"[{item['document']}]"
-        return f"[{item['document']}, p. {item['page']}]"
+def _normalize_citation_text(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip().lower())
 
-    return re.sub(r"\[([Cc]\d+)\]", replace, answer)
+
+def _citation_marker(citation_id: str) -> str:
+    return citation_id[1:] if citation_id.startswith("C") else citation_id
+
+
+def _replace_inline_chunk_citations(answer: str, citation_map: dict[str, dict[str, Any]]) -> str:
+    id_map: dict[str, dict[str, Any]] = {
+        citation_id.upper(): item for citation_id, item in citation_map.items()
+    }
+    doc_page_map: dict[tuple[str, int], str] = {}
+    doc_only_map: dict[str, set[str]] = {}
+
+    for citation_id, item in id_map.items():
+        document = str(item.get("document", "")).strip()
+        if not document:
+            continue
+        doc_norm = _normalize_citation_text(document)
+        doc_only_map.setdefault(doc_norm, set()).add(citation_id)
+
+        page = item.get("page")
+        try:
+            if page is not None:
+                doc_page_map[(doc_norm, int(page))] = citation_id
+        except (TypeError, ValueError):
+            continue
+
+    def replace_chunk_id(match: re.Match[str]) -> str:
+        citation_id = match.group(1).upper()
+        if id_map.get(citation_id) is None:
+            return match.group(0)
+        return f"[{_citation_marker(citation_id)}](cite:{citation_id})"
+
+    with_chunk_ids_replaced = re.sub(r"\[([Cc]\d+)\]", replace_chunk_id, answer)
+
+    def replace_document_reference(match: re.Match[str]) -> str:
+        raw_reference = match.group(1).strip()
+        parsed = re.match(
+            r"^(?P<document>.+?),\s*p\.?\s*(?P<page>\d+)\s*$",
+            raw_reference,
+            flags=re.IGNORECASE,
+        )
+        if parsed:
+            document_norm = _normalize_citation_text(parsed.group("document"))
+            page = int(parsed.group("page"))
+            citation_id = doc_page_map.get((document_norm, page))
+            if citation_id:
+                return f"[{_citation_marker(citation_id)}](cite:{citation_id})"
+
+        doc_only_ids = doc_only_map.get(_normalize_citation_text(raw_reference))
+        if doc_only_ids and len(doc_only_ids) == 1:
+            citation_id = next(iter(doc_only_ids))
+            return f"[{_citation_marker(citation_id)}](cite:{citation_id})"
+
+        return match.group(0)
+
+    # Replace bare bracketed references like [ELTE Rules, p. 83] but keep existing markdown links intact.
+    return re.sub(
+        r"\[([^\[\]\n]+)\](?!\()",
+        replace_document_reference,
+        with_chunk_ids_replaced,
+    )
 
 
 def _build_cited_sources(
@@ -182,6 +235,8 @@ def _build_cited_sources(
         seen.add(citation_id)
         cited_sources.append(
             {
+                "citation_id": citation_id,
+                "source": item["source"],
                 "document": item["document"],
                 "page": item["page"],
                 "relevant_snippet": item["snippet"],
@@ -193,6 +248,8 @@ def _build_cited_sources(
 
     return [
         {
+            "citation_id": item["citation_id"],
+            "source": item["source"],
             "document": item["document"],
             "page": item["page"],
             "relevant_snippet": item["snippet"],

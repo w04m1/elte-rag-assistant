@@ -143,8 +143,10 @@ class TestCitationGrounding:
         ]
         context_items = _build_context_items(docs)
         citation_map = {item["citation_id"]: item for item in context_items}
-        answer = _replace_inline_chunk_citations("Deadline is April 15th. [C1]", citation_map)
-        assert "[Thesis Rules, p. 3]" in answer
+        answer = _replace_inline_chunk_citations(
+            "Deadline is April 15th. [C1]", citation_map
+        )
+        assert "[1](cite:C1)" in answer
 
     def test_build_cited_sources_falls_back_to_context(self):
         docs = [
@@ -156,8 +158,30 @@ class TestCitationGrounding:
         context_items = _build_context_items(docs)
         cited_sources = _build_cited_sources([], context_items)
         assert len(cited_sources) == 1
+        assert cited_sources[0]["citation_id"] == "C1"
+        assert cited_sources[0]["source"] == "unknown"
         assert cited_sources[0]["document"] == "Exam Rules"
         assert cited_sources[0]["page"] == 2
+
+    def test_replace_document_page_references(self):
+        docs = [
+            Document(
+                page_content="Final certificate requirement text.",
+                metadata={"title": "ELTE SZMSZ II EN", "page": 83},
+            ),
+            Document(
+                page_content="Final exam requirement text.",
+                metadata={"title": "ELTE SZMSZ II EN", "page": 88},
+            ),
+        ]
+        context_items = _build_context_items(docs)
+        citation_map = {item["citation_id"]: item for item in context_items}
+        answer = _replace_inline_chunk_citations(
+            "Absolutorium [ELTE SZMSZ II EN, p. 83] then exam [ELTE SZMSZ II EN, p. 88].",
+            citation_map,
+        )
+        assert "[1](cite:C1)" in answer
+        assert "[2](cite:C2)" in answer
 
 
 class TestRerank:
