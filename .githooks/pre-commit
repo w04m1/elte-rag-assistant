@@ -1,0 +1,6 @@
+#!/bin/sh
+
+set -eu
+
+echo "Running test suite before commit..."
+uv run --extra dev pytest
