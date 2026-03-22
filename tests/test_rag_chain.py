@@ -5,12 +5,14 @@ from langchain_core.documents import Document
 
 from app.rag_chain import (
     _format_docs,
+    _build_cited_sources,
+    _build_context_items,
+    _replace_inline_chunk_citations,
     _rerank,
     RAG_PROMPT,
     get_llm,
     RAGResult,
     RAGOutput,
-    CitedSource,
 )
 
 
@@ -27,7 +29,7 @@ class TestFormatDocs:
             ),
         ]
         formatted = _format_docs(docs)
-        assert "[Thesis Rules, p. 3]" in formatted
+        assert "[C1 | Thesis Rules, p. 3]" in formatted
         assert "Thesis must be submitted" in formatted
         assert "Internship is mandatory" in formatted
 
@@ -112,30 +114,50 @@ class TestRAGOutput:
     def test_rag_output_model(self):
         output = RAGOutput(
             reasoning="I found the answer in context.",
-            answer="The deadline is April 15th. [Thesis Rules, p. 3]",
-            cited_sources=[
-                CitedSource(
-                    document="Thesis Rules",
-                    page=3,
-                    relevant_snippet="Students must submit their thesis by April 15th",
-                )
-            ],
+            answer="The deadline is April 15th. [C1]",
+            cited_chunk_ids=["C1"],
             confidence="high",
         )
         assert output.confidence == "high"
-        assert len(output.cited_sources) == 1
-        assert output.cited_sources[0].page == 3
+        assert output.cited_chunk_ids == ["C1"]
 
     def test_rag_output_serialization(self):
         output = RAGOutput(
             reasoning="analysis",
             answer="answer text",
-            cited_sources=[],
+            cited_chunk_ids=[],
             confidence="low",
         )
         data = output.model_dump()
         assert data["confidence"] == "low"
-        assert data["cited_sources"] == []
+        assert data["cited_chunk_ids"] == []
+
+
+class TestCitationGrounding:
+    def test_replace_inline_chunk_citations(self):
+        docs = [
+            Document(
+                page_content="Thesis must be submitted by April.",
+                metadata={"title": "Thesis Rules", "page": 3},
+            )
+        ]
+        context_items = _build_context_items(docs)
+        citation_map = {item["citation_id"]: item for item in context_items}
+        answer = _replace_inline_chunk_citations("Deadline is April 15th. [C1]", citation_map)
+        assert "[Thesis Rules, p. 3]" in answer
+
+    def test_build_cited_sources_falls_back_to_context(self):
+        docs = [
+            Document(
+                page_content="Students must pass the final examination.",
+                metadata={"title": "Exam Rules", "page": 2},
+            )
+        ]
+        context_items = _build_context_items(docs)
+        cited_sources = _build_cited_sources([], context_items)
+        assert len(cited_sources) == 1
+        assert cited_sources[0]["document"] == "Exam Rules"
+        assert cited_sources[0]["page"] == 2
 
 
 class TestRerank:

@@ -4,20 +4,30 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.rag_chain import RAGResult
+from app.runtime_settings import RuntimeSettingsStore
 
 
 @pytest.fixture()
-def client(test_faiss_db):
+def client(test_faiss_db, tmp_path):
     from app.main import app, resources
 
+    runtime_store = RuntimeSettingsStore(tmp_path / "runtime-settings.json")
     resources["db"] = test_faiss_db
-    with TestClient(app, raise_server_exceptions=False) as c:
-        yield c
+    resources["runtime_settings_store"] = runtime_store
+    resources["reindex_status"] = {"status": "idle", "error": None, "vector_count": 0}
+    resources["scrape_status"] = {"status": "idle", "error": None, "result": None}
+    with patch("app.main.settings.runtime_settings_path", str(tmp_path / "runtime-settings.json")):
+        with TestClient(app, raise_server_exceptions=False) as c:
+            resources["db"] = test_faiss_db
+            resources["runtime_settings_store"] = runtime_store
+            resources["reindex_status"] = {"status": "idle", "error": None, "vector_count": 0}
+            resources["scrape_status"] = {"status": "idle", "error": None, "result": None}
+            yield c
     resources.clear()
 
 
 @pytest.fixture()
-def client_no_db():
+def client_no_db(tmp_path):
     from app.main import app, resources
 
     with (
@@ -27,7 +37,17 @@ def client_no_db():
         mock_settings.embedding_provider = "local"
         mock_settings.embedding_model_name = "all-MiniLM-L6-v2"
         mock_settings.faiss_index_path = "/nonexistent/path"
+        mock_settings.runtime_settings_path = str(tmp_path / "runtime-settings.json")
         mock_settings.retrieval_hybrid = False
+        mock_settings.cors_allow_origins = "*"
+        mock_settings.raw_data_path = str(tmp_path / "raw")
+        mock_settings.scrape_download_path = str(tmp_path / "raw")
+        mock_settings.scrape_manifest_path = str(tmp_path / "scrape.json")
+        mock_settings.llm_provider = "openrouter"
+        mock_settings.openrouter_model = "generator"
+        mock_settings.reranker_model = "reranker"
+        mock_settings.openrouter_embedding_model = "embedding"
+        mock_settings.ollama_model = "ollama"
         mock_get_embeddings.return_value = MagicMock()
         with TestClient(app, raise_server_exceptions=False) as c:
             yield c
@@ -143,6 +163,64 @@ class TestAskEndpoint:
             assert "reasoning" in data
             assert "confidence" in data
             assert "cited_sources" in data
+
+
+class TestAdminSettingsEndpoint:
+    def test_get_settings(self, client):
+        resp = client.get("/admin/settings")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "generator_model" in data
+        assert "reranker_model" in data
+
+    def test_update_settings(self, client):
+        resp = client.put(
+            "/admin/settings",
+            json={"generator_model": "demo-generator", "system_prompt": "Demo prompt"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["generator_model"] == "demo-generator"
+        assert data["system_prompt"] == "Demo prompt"
+
+
+class TestAdminDocumentsEndpoint:
+    def test_upload_document(self, client, tmp_path):
+        upload_dir = tmp_path / "raw"
+        upload_dir.mkdir()
+        with patch("app.main.settings.raw_data_path", str(upload_dir)):
+            resp = client.post(
+                "/admin/documents/upload",
+                files={"file": ("demo.pdf", b"%PDF-1.4 demo", "application/pdf")},
+            )
+        assert resp.status_code == 200
+        assert (upload_dir / "demo.pdf").exists()
+
+    def test_delete_document(self, client, tmp_path):
+        upload_dir = tmp_path / "raw"
+        upload_dir.mkdir()
+        target = upload_dir / "demo.pdf"
+        target.write_bytes(b"%PDF-1.4 demo")
+        with patch("app.main.settings.raw_data_path", str(upload_dir)):
+            resp = client.delete("/admin/documents/demo.pdf")
+        assert resp.status_code == 200
+        assert not target.exists()
+
+
+class TestBackgroundJobs:
+    def test_trigger_reindex(self, client):
+        with patch("app.main._run_reindex_job") as mock_job:
+            resp = client.post("/admin/reindex")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "queued"
+        mock_job.assert_called_once()
+
+    def test_trigger_scrape(self, client):
+        with patch("app.main._run_scrape_job") as mock_job:
+            resp = client.post("/admin/scrape")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "queued"
+        mock_job.assert_called_once()
 
 
 class TestDocumentsEndpoint:

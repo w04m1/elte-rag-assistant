@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -39,66 +40,69 @@ class RAGOutput(BaseModel):
     answer: str = PydanticField(
         description="User-facing answer with inline citations in [Document Title, p. X] format",
     )
-    cited_sources: list[CitedSource] = PydanticField(
+    cited_chunk_ids: list[str] = PydanticField(
         default_factory=list,
-        description="Structured list of cited sources with document name, page, and relevant snippet",
+        description="Structured list of cited chunk IDs like C1, C2 derived from the provided context",
     )
     confidence: Literal["high", "medium", "low"] = PydanticField(
         description="Confidence level based on how well the context answers the question",
     )
 
 
-SYSTEM_PROMPT = """\
+DEFAULT_SYSTEM_PROMPT = """\
 You are a helpful FAQ assistant for ELTE University.
 Answer the student's question **based only on the provided context**.
 If the context does not contain enough information, say "I don't have enough information to answer that question."
 
 Rules:
 - Be concise and accurate.
-- Cite the source document and page number for every claim (e.g. [Document Title, p. 5]).
+- Each context block has a stable citation ID such as [C1].
+- When you cite claims inline, cite the chunk IDs like [C1] or [C1][C2].
 - Do not make up information that is not in the context.
 - Before answering, reason step-by-step about which parts of the context are relevant.
 - Assess your confidence level (high, medium, or low) based on how well the context answers the question.
-- Include structured citations listing each source document, page, and relevant snippet.
+- Return cited_chunk_ids using only the chunk IDs that support the answer.
 """
 
-RAG_PROMPT = ChatPromptTemplate.from_messages(
-    [
-        ("system", SYSTEM_PROMPT),
-        # Few-shot technique
-        (
-            "human",
-            "Context:\n[Thesis Rules, p. 3]\nStudents must submit their thesis by "
-            "April 15th of the final semester. Late submissions will not be accepted "
-            "without prior approval from the department head.\n\n---\n"
-            "Question: When is the thesis submission deadline?",
-        ),
-        (
-            "assistant",
-            "The thesis submission deadline is April 15th of the final semester. "
-            "Late submissions are not accepted without prior approval from the "
-            "department head. [Thesis Rules, p. 3]",
-        ),
-        (
-            "human",
-            "Context:\n[Enrolment Guide, p. 5]\nStudents can enroll in elective "
-            "courses through the Neptun system during the registration period."
-            "\n\n---\n"
-            "Question: What is the tuition fee for international students?",
-        ),
-        (
-            "assistant",
-            "I don't have enough information to answer that question. The available "
-            "context covers course enrollment procedures but does not mention tuition "
-            "fees for international students.",
-        ),
-        # Actual user query
-        (
-            "human",
-            "Context:\n{context}\n\n---\nQuestion: {question}",
-        ),
-    ]
-)
+def build_rag_prompt(system_prompt: str) -> ChatPromptTemplate:
+    return ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt),
+            (
+                "human",
+                "Context:\n[C1 | Thesis Rules, p. 3]\nStudents must submit their thesis by "
+                "April 15th of the final semester. Late submissions will not be accepted "
+                "without prior approval from the department head.\n\n---\n"
+                "Question: When is the thesis submission deadline?",
+            ),
+            (
+                "assistant",
+                "The thesis submission deadline is April 15th of the final semester. "
+                "Late submissions are not accepted without prior approval from the "
+                "department head. [C1]",
+            ),
+            (
+                "human",
+                "Context:\n[C1 | Enrolment Guide, p. 5]\nStudents can enroll in elective "
+                "courses through the Neptun system during the registration period."
+                "\n\n---\n"
+                "Question: What is the tuition fee for international students?",
+            ),
+            (
+                "assistant",
+                "I don't have enough information to answer that question. The available "
+                "context covers course enrollment procedures but does not mention tuition "
+                "fees for international students.",
+            ),
+            (
+                "human",
+                "Context:\n{context}\n\n---\nQuestion: {question}",
+            ),
+        ]
+    )
+
+
+RAG_PROMPT = build_rag_prompt(DEFAULT_SYSTEM_PROMPT)
 
 RERANK_PROMPT = ChatPromptTemplate.from_messages(
     [
@@ -114,28 +118,86 @@ RERANK_PROMPT = ChatPromptTemplate.from_messages(
 )
 
 
-def _format_docs(docs: list[Document]) -> str:
-    """Format retrieved documents into a single context string with source info."""
-    parts: list[str] = []
-    for doc in docs:
+def _build_context_items(docs: list[Document]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for index, doc in enumerate(docs, start=1):
         meta = doc.metadata
         source = meta.get("title", meta.get("source", "unknown"))
         page = meta.get("page", "?")
-        parts.append(f"[{source}, p. {page}]\n{doc.page_content}")
+        items.append(
+            {
+                "citation_id": f"C{index}",
+                "document": source,
+                "page": page if page != "?" else None,
+                "content": doc.page_content,
+                "snippet": doc.page_content[:300],
+                "source": meta.get("source", "unknown"),
+            }
+        )
+    return items
+
+
+def _format_docs(docs: list[Document]) -> str:
+    """Format retrieved documents into a single context string with stable IDs."""
+    parts: list[str] = []
+    for item in _build_context_items(docs):
+        page = item["page"] if item["page"] is not None else "?"
+        parts.append(
+            f"[{item['citation_id']} | {item['document']}, p. {page}]\n{item['content']}"
+        )
     return "\n\n".join(parts)
 
 
 def _extract_sources(docs: list[Document]) -> list[dict[str, Any]]:
     """Build the sources list from retrieved documents."""
+    return _build_context_items(docs)
+
+
+def _replace_inline_chunk_citations(answer: str, citation_map: dict[str, dict[str, Any]]) -> str:
+    def replace(match: re.Match[str]) -> str:
+        citation_id = match.group(1).upper()
+        item = citation_map.get(citation_id)
+        if item is None:
+            return match.group(0)
+        if item["page"] is None:
+            return f"[{item['document']}]"
+        return f"[{item['document']}, p. {item['page']}]"
+
+    return re.sub(r"\[([Cc]\d+)\]", replace, answer)
+
+
+def _build_cited_sources(
+    cited_chunk_ids: list[str],
+    context_items: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    by_id = {item["citation_id"]: item for item in context_items}
+    cited_sources: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    for raw_id in cited_chunk_ids:
+        citation_id = raw_id.upper()
+        item = by_id.get(citation_id)
+        if item is None or citation_id in seen:
+            continue
+        seen.add(citation_id)
+        cited_sources.append(
+            {
+                "document": item["document"],
+                "page": item["page"],
+                "relevant_snippet": item["snippet"],
+            }
+        )
+
+    if cited_sources:
+        return cited_sources
+
     return [
         {
-            "content": doc.page_content[:300],
-            "document": doc.metadata.get(
-                "title", doc.metadata.get("source", "unknown")
-            ),
-            "page": doc.metadata.get("page", None),
+            "document": item["document"],
+            "page": item["page"],
+            "relevant_snippet": item["snippet"],
         }
-        for doc in docs
+        for item in context_items[: min(3, len(context_items))]
     ]
 
 
@@ -180,16 +242,20 @@ async def _rerank(
     query: str,
     docs: list[Document],
     top_k: int,
+    reranker_model: str | None = None,
 ) -> list[Document]:
     """Rerank docs using an LLM-based relevance scorer."""
     if not settings.retrieval_use_reranker or not docs:
         return docs[:top_k]
 
     logger.info(
-        f"Reranking {len(docs)} documents to top {top_k} using {settings.reranker_model}",
+        "Reranking %d documents to top %d using %s",
+        len(docs),
+        top_k,
+        reranker_model or settings.reranker_model,
     )
 
-    reranker_llm = get_llm(model_override=settings.reranker_model)
+    reranker_llm = get_llm(model_override=reranker_model or settings.reranker_model)
 
     chunks_text = "\n\n".join(
         f"[Chunk {i + 1}]: {doc.page_content[:500]}" for i, doc in enumerate(docs)
@@ -260,6 +326,10 @@ async def ask(
     query: str,
     db: FAISS,
     bm25_retriever=None,
+    *,
+    system_prompt: str | None = None,
+    generator_model: str | None = None,
+    reranker_model: str | None = None,
 ) -> RAGResult:
     """Run the full RAG pipeline and return a structured result."""
     k = settings.retrieval_k
@@ -287,22 +357,25 @@ async def ask(
         docs = retriever.invoke(query)
 
     # Reranking
-    docs = await _rerank(query, docs, top_k=k)
+    docs = await _rerank(query, docs, top_k=k, reranker_model=reranker_model)
 
     # Generation
-    llm = get_llm()
+    llm = get_llm(model_override=generator_model)
     model_name = str(
         getattr(llm, "model_name", None) or getattr(llm, "model", "unknown")
     )
+    context_items = _build_context_items(docs)
     context = _format_docs(docs)
     sources = _extract_sources(docs)
+    prompt = build_rag_prompt(system_prompt or DEFAULT_SYSTEM_PROMPT)
+    citation_map = {item["citation_id"]: item for item in context_items}
 
     # Try structured output , fall back to plain string
     try:
         import warnings
 
         structured_llm = llm.with_structured_output(RAGOutput)
-        chain = RAG_PROMPT | structured_llm
+        chain = prompt | structured_llm
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
@@ -312,18 +385,25 @@ async def ask(
             output: RAGOutput = await chain.ainvoke(
                 {"context": context, "question": query}
             )
+        cited_sources = _build_cited_sources(output.cited_chunk_ids, context_items)
         return RAGResult(
-            answer=output.answer,
+            answer=_replace_inline_chunk_citations(output.answer, citation_map),
             sources=sources,
             model_used=model_name,
             reasoning=output.reasoning,
             confidence=output.confidence,
-            cited_sources=[cs.model_dump() for cs in output.cited_sources],
+            cited_sources=cited_sources,
         )
     except Exception as exc:
         logger.warning(
             f"Structured output failed ({exc}), falling back to plain string",
         )
-        plain_chain = RAG_PROMPT | llm | StrOutputParser()
+        plain_chain = prompt | llm | StrOutputParser()
         answer: str = await plain_chain.ainvoke({"context": context, "question": query})
-        return RAGResult(answer=answer, sources=sources, model_used=model_name)
+        fallback_citations = _build_cited_sources([], context_items)
+        return RAGResult(
+            answer=_replace_inline_chunk_citations(answer, citation_map),
+            sources=sources,
+            model_used=model_name,
+            cited_sources=fallback_citations,
+        )

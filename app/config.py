@@ -21,10 +21,13 @@ class Settings(BaseSettings):
 
     # FAISS vector store path
     faiss_index_path: str = "data/vector_store"
+    runtime_settings_path: str = "data/runtime/settings.json"
+    scrape_manifest_path: str = "data/runtime/scrape_manifest.json"
 
     # Ingestion/chunking params
     max_tokens: int = 256
     raw_data_path: str = "data/raw"
+    scrape_download_path: str = "data/raw"
 
     # Retrieval params
     retrieval_k: int = 5
@@ -50,6 +53,7 @@ class Settings(BaseSettings):
     # API
     api_host: str = "127.0.0.1"
     api_port: int = 8000
+    cors_allow_origins: str = "*"
 
 
 # Singleton
