@@ -7,6 +7,7 @@ from pathlib import Path
 import uvicorn
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from langchain_community.retrievers import BM25Retriever
 from langchain_community.vectorstores import FAISS
@@ -95,6 +96,7 @@ def _run_scrape_job() -> None:
         result = run_targeted_scrape(
             download_dir=settings.scrape_download_path,
             manifest_path=settings.scrape_manifest_path,
+            news_output_dir=settings.scrape_news_path,
         )
         _set_job_status(
             "scrape_status",
@@ -163,6 +165,8 @@ class SourceItem(BaseModel):
 
 
 class CitedSourceItem(BaseModel):
+    citation_id: str
+    source: str
     document: str
     page: int | None = None
     relevant_snippet: str
@@ -314,6 +318,19 @@ async def delete_document(file_name: str):
         raise HTTPException(status_code=404, detail="Document not found.")
     destination.unlink()
     return {"status": "deleted", "file_name": destination.name}
+
+
+@app.get("/files/{file_name}")
+async def get_source_file(file_name: str):
+    destination = _safe_destination(file_name)
+    if not destination.exists():
+        raise HTTPException(status_code=404, detail="Document not found.")
+    return FileResponse(
+        destination,
+        media_type="application/pdf",
+        filename=destination.name,
+        content_disposition_type="inline",
+    )
 
 
 @app.post("/admin/reindex", response_model=JobStatusResponse)

@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
@@ -32,7 +33,72 @@ def _safe_filename_from_url(url: str) -> str:
     if name.lower().endswith(".pdf"):
         return name
     digest = hashlib.sha256(url.encode("utf-8")).hexdigest()[:12]
-    return f"{digest}.html"
+    return f"{digest}.json"
+
+
+def _is_news_article_url(url: str, source_page: str) -> bool:
+    normalized_url = url.lower()
+    normalized_source = source_page.lower()
+    if normalized_url.endswith(".pdf"):
+        return False
+
+    if "news.t.53" in normalized_source:
+        return (
+            "/content/" in normalized_url
+            and ".t." in normalized_url
+            and "news.t.53" not in normalized_url
+        )
+
+    return "/content/" in normalized_url and ".t." in normalized_url and "documents.t.295" not in normalized_url
+
+
+def _extract_clean_text(soup: BeautifulSoup) -> str:
+    container = soup.find("article") or soup.find("main") or soup.body
+    if container is None:
+        return ""
+
+    for tag in container.find_all(["script", "style", "noscript"]):
+        tag.decompose()
+
+    text = " ".join(part.strip() for part in container.stripped_strings if part.strip())
+    return " ".join(text.split())
+
+
+def _extract_published_at(soup: BeautifulSoup) -> str | None:
+    time_tag = soup.find("time")
+    if time_tag is None:
+        return None
+
+    datetime_attr = time_tag.get("datetime")
+    if datetime_attr:
+        return datetime_attr.strip()
+
+    value = time_tag.get_text(strip=True)
+    return value or None
+
+
+def _build_news_payload(url: str, html: str) -> dict | None:
+    soup = BeautifulSoup(html, "html.parser")
+    title = ""
+    h1 = soup.find("h1")
+    if h1 is not None:
+        title = h1.get_text(strip=True)
+    if not title and soup.title is not None:
+        title = soup.title.get_text(strip=True)
+
+    body = _extract_clean_text(soup)
+    if len(body) < 200:
+        return None
+
+    content_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    return {
+        "url": url,
+        "title": title or url,
+        "published_at": _extract_published_at(soup),
+        "body": body,
+        "scraped_at": datetime.now(UTC).isoformat(),
+        "content_hash": content_hash,
+    }
 
 
 def _load_manifest(path: Path) -> dict:
@@ -50,6 +116,7 @@ def run_targeted_scrape(
     *,
     download_dir: str | Path,
     manifest_path: str | Path,
+    news_output_dir: str | Path = "data/scraped_news",
     client: httpx.Client | None = None,
     target_pages: list[str] | None = None,
 ) -> ScrapeResult:
@@ -57,6 +124,8 @@ def run_targeted_scrape(
     client = client or httpx.Client(follow_redirects=True, timeout=30.0)
     download_root = Path(download_dir)
     download_root.mkdir(parents=True, exist_ok=True)
+    news_root = Path(news_output_dir)
+    news_root.mkdir(parents=True, exist_ok=True)
     manifest_file = Path(manifest_path)
     manifest = _load_manifest(manifest_file)
     existing_urls = {item["url"] for item in manifest.get("items", [])}
@@ -64,6 +133,7 @@ def run_targeted_scrape(
 
     discovered_items: list[dict] = []
     downloaded_count = 0
+    news_saved_count = 0
     discovered_count = 0
     target_pages = target_pages or DEFAULT_TARGET_PAGES
 
@@ -89,6 +159,7 @@ def run_targeted_scrape(
                 is_pdf = absolute_url.lower().endswith(".pdf")
                 status = "discovered"
                 saved_path = None
+                item_type = "link"
 
                 if is_pdf:
                     file_response = client.get(absolute_url)
@@ -97,6 +168,20 @@ def run_targeted_scrape(
                     Path(saved_path).write_bytes(file_response.content)
                     downloaded_count += 1
                     status = "downloaded"
+                    item_type = "pdf"
+                elif _is_news_article_url(absolute_url, page_url):
+                    article_response = client.get(absolute_url)
+                    article_response.raise_for_status()
+                    payload = _build_news_payload(absolute_url, article_response.text)
+                    if payload is not None:
+                        saved_path = str(news_root / file_name)
+                        Path(saved_path).write_text(
+                            json.dumps(payload, indent=2, ensure_ascii=False),
+                            encoding="utf-8",
+                        )
+                        status = "indexed"
+                        item_type = "news"
+                        news_saved_count += 1
 
                 discovered_count += 1
                 item = {
@@ -105,6 +190,7 @@ def run_targeted_scrape(
                     "file_name": file_name,
                     "status": status,
                     "saved_path": saved_path,
+                    "item_type": item_type,
                 }
                 discovered_items.append(item)
                 existing_urls.add(absolute_url)
@@ -118,6 +204,7 @@ def run_targeted_scrape(
             targets=target_pages,
             discovered_count=discovered_count,
             downloaded_count=downloaded_count,
+            news_saved_count=news_saved_count,
             items=discovered_items,
         )
     finally:

@@ -1,13 +1,15 @@
 import argparse
+import json
 import logging
 import os
 from pathlib import Path
+from typing import Any
 
+from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from docling.chunking import HybridChunker
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 
@@ -24,6 +26,82 @@ def _title_from_filename(filename: str) -> str:
     return name.strip()
 
 
+def _extract_page_from_chunk(chunk: Any) -> int | None:
+    """Extract page number from docling chunk metadata.
+
+    Docling's HybridChunker stores provenance at chunk.meta.doc_items[*].prov[*].page_no.
+    """
+    meta = getattr(chunk, "meta", None)
+    if meta is None:
+        return None
+
+    # Backward compatibility if page is attached directly.
+    raw_page = getattr(meta, "page", None)
+    if isinstance(raw_page, int):
+        return raw_page
+    if isinstance(raw_page, str) and raw_page.isdigit():
+        return int(raw_page)
+
+    doc_items = getattr(meta, "doc_items", None) or []
+    pages: list[int] = []
+    for item in doc_items:
+        prov_items = getattr(item, "prov", None)
+        if prov_items is None and isinstance(item, dict):
+            prov_items = item.get("prov")
+        if not prov_items:
+            continue
+
+        for prov in prov_items:
+            page_no = getattr(prov, "page_no", None)
+            if page_no is None and isinstance(prov, dict):
+                page_no = prov.get("page_no")
+
+            if isinstance(page_no, int):
+                pages.append(page_no)
+            elif isinstance(page_no, str) and page_no.isdigit():
+                pages.append(int(page_no))
+
+    return min(pages) if pages else None
+
+
+def _load_news_documents(news_dir: str | Path | None = None) -> list[Document]:
+    """Load normalized scraped news files and convert them to retrievable documents."""
+    news_dir = Path(news_dir or settings.scrape_news_path)
+    if not news_dir.exists():
+        return []
+
+    documents: list[Document] = []
+    for news_path in sorted(news_dir.glob("*.json")):
+        try:
+            payload = json.loads(news_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            logger.warning("Skipping invalid news file %s: %s", news_path.name, exc)
+            continue
+
+        body = str(payload.get("body", "")).strip()
+        if not body:
+            continue
+
+        title = str(payload.get("title", "")).strip() or _title_from_filename(news_path.name)
+        source_url = str(payload.get("url", "")).strip()
+        content = f"{title}\n\n{body}"
+        if source_url:
+            content = f"Source URL: {source_url}\n\n{content}"
+
+        metadata: dict[str, Any] = {
+            "source": source_url or news_path.name,
+            "title": title,
+            "type": "news",
+        }
+        published_at = payload.get("published_at")
+        if published_at:
+            metadata["published_at"] = str(published_at)
+
+        documents.append(Document(page_content=content, metadata=metadata))
+
+    return documents
+
+
 def create_vector_db(
     source_dir: str | None = None,
     output_dir: str | None = None,
@@ -32,58 +110,72 @@ def create_vector_db(
     output_dir = output_dir or settings.faiss_index_path
 
     pdf_paths = sorted(Path(source_dir).glob("*.pdf"))
+    news_documents = _load_news_documents()
 
-    if not pdf_paths:
-        logger.warning(f"No PDF documents found in {source_dir}")
+    if not pdf_paths and not news_documents:
+        logger.warning(
+            "No ingestion inputs found in %s and %s",
+            source_dir,
+            settings.scrape_news_path,
+        )
         return
 
-    logger.info(f"Found {len(pdf_paths)} PDF files in {source_dir}")
-
-    pipeline_options = PdfPipelineOptions()
-    pipeline_options.do_ocr = False
-    pipeline_options.do_table_structure = True
-
-    converter = DocumentConverter(
-        format_options={
-            InputFormat.PDF: PdfFormatOption(
-                pipeline_options=pipeline_options,
-                backend=PyPdfiumDocumentBackend,
-            ),
-        },
-    )
-    chunker = HybridChunker(
-        tokenizer=f"sentence-transformers/{settings.embedding_model_name}",
-        max_tokens=settings.max_tokens,
-        merge_peers=True,
-    )
+    logger.info("Found %d PDF files in %s", len(pdf_paths), source_dir)
+    logger.info("Found %d normalized news files in %s", len(news_documents), settings.scrape_news_path)
 
     documents: list[Document] = []
 
-    for pdf_path in pdf_paths:
-        logger.info(f"Converting {pdf_path.name}...")
-        result = converter.convert(str(pdf_path))
-        title = _title_from_filename(pdf_path.name)
+    if pdf_paths:
+        pipeline_options = PdfPipelineOptions()
+        pipeline_options.do_ocr = False
+        pipeline_options.do_table_structure = True
 
-        chunks = list(chunker.chunk(result.document))
-        for chunk in chunks:
-            text = chunker.contextualize(chunk)
-
-            meta: dict = {
-                "source": pdf_path.name,
-                "title": title,
-            }
-            if hasattr(chunk.meta, "headings") and chunk.meta.headings:
-                meta["headings"] = chunk.meta.headings
-            if hasattr(chunk.meta, "page") and chunk.meta.page is not None:
-                meta["page"] = chunk.meta.page
-
-            documents.append(Document(page_content=text, metadata=meta))
-
-        logger.info(
-            f"  → {len(chunks)} chunks from {pdf_path.name} ({len(result.document.pages)} pages)"
+        converter = DocumentConverter(
+            format_options={
+                InputFormat.PDF: PdfFormatOption(
+                    pipeline_options=pipeline_options,
+                    backend=PyPdfiumDocumentBackend,
+                ),
+            },
+        )
+        chunker = HybridChunker(
+            tokenizer=f"sentence-transformers/{settings.embedding_model_name}",
+            max_tokens=settings.max_tokens,
+            merge_peers=True,
         )
 
-    logger.info(f"Total chunks: {len(documents)}")
+        for pdf_path in pdf_paths:
+            logger.info("Converting %s...", pdf_path.name)
+            result = converter.convert(str(pdf_path))
+            title = _title_from_filename(pdf_path.name)
+
+            chunks = list(chunker.chunk(result.document))
+            for chunk in chunks:
+                text = chunker.contextualize(chunk)
+
+                meta: dict[str, Any] = {
+                    "source": pdf_path.name,
+                    "title": title,
+                }
+                if hasattr(chunk.meta, "headings") and chunk.meta.headings:
+                    meta["headings"] = chunk.meta.headings
+
+                page = _extract_page_from_chunk(chunk)
+                if page is not None:
+                    meta["page"] = page
+
+                documents.append(Document(page_content=text, metadata=meta))
+
+            logger.info(
+                "  → %d chunks from %s (%d pages)",
+                len(chunks),
+                pdf_path.name,
+                len(result.document.pages),
+            )
+
+    documents.extend(news_documents)
+
+    logger.info("Total chunks/documents indexed: %d", len(documents))
 
     embeddings = get_embeddings()
 

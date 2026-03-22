@@ -105,6 +105,8 @@ class TestAskEndpoint:
             confidence="high",
             cited_sources=[
                 {
+                    "citation_id": "C1",
+                    "source": "thesis_rules.pdf",
                     "document": "Thesis Rules",
                     "page": 3,
                     "relevant_snippet": "Students must submit...",
@@ -126,6 +128,8 @@ class TestAskEndpoint:
             )
             assert data["confidence"] == "high"
             assert len(data["cited_sources"]) == 1
+            assert data["cited_sources"][0]["citation_id"] == "C1"
+            assert data["cited_sources"][0]["source"] == "thesis_rules.pdf"
 
     def test_ask_no_db(self, client_no_db):
         resp = client_no_db.post("/ask", json={"query": "test"})
@@ -205,6 +209,24 @@ class TestAdminDocumentsEndpoint:
             resp = client.delete("/admin/documents/demo.pdf")
         assert resp.status_code == 200
         assert not target.exists()
+
+    def test_get_source_file(self, client, tmp_path):
+        upload_dir = tmp_path / "raw"
+        upload_dir.mkdir()
+        target = upload_dir / "demo.pdf"
+        target.write_bytes(b"%PDF-1.4 demo")
+        with patch("app.main.settings.raw_data_path", str(upload_dir)):
+            resp = client.get("/files/demo.pdf")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "application/pdf"
+        assert "inline" in resp.headers.get("content-disposition", "").lower()
+
+    def test_get_source_file_not_found(self, client, tmp_path):
+        upload_dir = tmp_path / "raw"
+        upload_dir.mkdir()
+        with patch("app.main.settings.raw_data_path", str(upload_dir)):
+            resp = client.get("/files/missing.pdf")
+        assert resp.status_code == 404
 
 
 class TestBackgroundJobs:

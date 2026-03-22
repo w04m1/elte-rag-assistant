@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     faiss_index_path: str = "data/vector_store"
     runtime_settings_path: str = "data/runtime/settings.json"
     scrape_manifest_path: str = "data/runtime/scrape_manifest.json"
+    scrape_news_path: str = "data/scraped_news"
 
     # Ingestion/chunking params
     max_tokens: int = 256
