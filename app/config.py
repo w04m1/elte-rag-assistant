@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     runtime_settings_path: str = "data/runtime/settings.json"
     scrape_manifest_path: str = "data/runtime/scrape_manifest.json"
     scrape_news_path: str = "data/scraped_news"
+    news_typesense_url: str = "https://typesense.elte.hu/multi_search"
+    news_typesense_api_key: str = ""
+    news_records_path: str = "data/news/items"
+    news_state_path: str = "data/news/state.json"
+    news_faiss_index_path: str = "data/news_vector_store"
+    news_bootstrap_pages: int = 4
+    news_sync_pages: int = 2
+    news_sync_interval_seconds: int = 21600
+    news_request_timeout_seconds: float = 30.0
 
     # Ingestion/chunking params
     max_tokens: int = 256

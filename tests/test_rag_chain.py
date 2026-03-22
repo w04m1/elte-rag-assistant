@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import pytest
 from langchain_core.documents import Document
+from langchain_core.runnables import RunnableLambda
 
 from app.rag_chain import (
     _format_docs,
@@ -255,3 +256,75 @@ class TestRerank:
         docs = [Document(page_content=f"Doc {i}", metadata={}) for i in range(5)]
         result = await _rerank("query", docs, top_k=3)
         assert len(result) == 3
+
+
+class _FakeRetriever:
+    def __init__(self, docs):
+        self._docs = docs
+
+    def invoke(self, _query):
+        return list(self._docs)
+
+
+class _FakeVectorStore:
+    def __init__(self, docs):
+        self._docs = docs
+
+    def as_retriever(self, **_kwargs):
+        return _FakeRetriever(self._docs)
+
+
+class TestAskRetrieval:
+    @pytest.mark.asyncio
+    @patch("app.rag_chain.settings")
+    @patch("app.rag_chain.get_llm")
+    async def test_ask_fuses_document_and_news_candidates(self, mock_get_llm, mock_settings):
+        from app.rag_chain import ask
+
+        mock_settings.retrieval_k = 3
+        mock_settings.retrieval_fetch_k = 5
+        mock_settings.retrieval_hybrid = False
+        mock_settings.retrieval_hybrid_weight = 0.6
+        mock_settings.retrieval_use_reranker = False
+        mock_settings.reranker_model = "mock-reranker"
+        mock_settings.llm_provider = "openrouter"
+        mock_settings.openrouter_model = "mock-generator"
+        mock_settings.openrouter_api_key = "test-key"
+
+        async def _structured_output(_input):
+            return RAGOutput(
+                reasoning="news item is relevant",
+                answer="Recent update is in the announcement. [C2]",
+                cited_chunk_ids=["C2"],
+                confidence="high",
+            )
+
+        fake_llm = type("FakeLLM", (), {"model_name": "fake-model"})()
+        fake_llm.with_structured_output = lambda _schema: RunnableLambda(_structured_output)
+        mock_get_llm.return_value = fake_llm
+
+        pdf_doc = Document(
+            page_content="Thesis submission deadline rules.",
+            metadata={"title": "Thesis Rules", "source": "thesis_rules.pdf", "page": 3},
+        )
+        news_doc = Document(
+            page_content="Award announcement details.",
+            metadata={
+                "title": "Double professional success",
+                "source": "https://inf.elte.hu/en/node/326060",
+                "source_type": "news",
+                "published_at": "2026-03-08T11:45:37+00:00",
+            },
+        )
+
+        result = await ask(
+            query="Any recent awards?",
+            db=_FakeVectorStore([pdf_doc]),
+            news_db=_FakeVectorStore([news_doc]),
+        )
+
+        assert "cite:C2" in result.answer
+        assert len(result.cited_sources) == 1
+        assert result.cited_sources[0]["citation_id"] == "C2"
+        assert result.cited_sources[0]["source"] == "https://inf.elte.hu/en/node/326060"
+        assert result.cited_sources[0]["source_type"] == "news"

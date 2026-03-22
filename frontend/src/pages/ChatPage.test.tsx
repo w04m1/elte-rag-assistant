@@ -34,6 +34,7 @@ describe("ChatPage", () => {
           document: "Thesis Rules",
           page: 3,
           relevant_snippet: "Students must submit by April 15th.",
+          source_type: "pdf",
         },
       ],
     });
@@ -60,6 +61,42 @@ describe("ChatPage", () => {
 
     const sourceLink = screen.getByRole("link", { name: /open source/i });
     expect(sourceLink).toHaveAttribute("href", "/api/files/thesis_rules.pdf#page=3");
+    expect(screen.getByText(/^PDF$/i)).toBeInTheDocument();
+  });
+
+  it("renders news citations with external links and source type", async () => {
+    askQuestionMock.mockResolvedValue({
+      answer: "Latest update is available. [C1]",
+      sources: [],
+      model_used: "demo-model",
+      reasoning: "",
+      confidence: "medium",
+      cited_sources: [
+        {
+          citation_id: "C1",
+          source: "https://inf.elte.hu/en/node/326060",
+          document: "Double professional success",
+          page: null,
+          relevant_snippet: "The Faculty won two Marketing Diamond Awards.",
+          source_type: "news",
+          published_at: "2026-03-08T11:45:37+00:00",
+        },
+      ],
+    });
+
+    const user = userEvent.setup();
+    render(<ChatPage />);
+
+    await user.type(screen.getByLabelText("Question"), "Any recent awards?");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/latest update/i)).toBeInTheDocument();
+    });
+
+    const sourceLink = screen.getByRole("link", { name: /open source/i });
+    expect(sourceLink).toHaveAttribute("href", "https://inf.elte.hu/en/node/326060");
+    expect(screen.getByText(/^News/i)).toBeInTheDocument();
   });
 
   it("persists current chat and clears it with New chat", async () => {

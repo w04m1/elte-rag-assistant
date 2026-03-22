@@ -1,0 +1,68 @@
+{
+  "items": {
+    "entity:node-282532:en": {
+      "id": "entity:node-282532:en",
+      "url": "https://inf.elte.hu/en/node/282532",
+      "title": "Applications are open now",
+      "published_at": "2026-02-03T09:37:24+00:00",
+      "file_name": "5c1e53e0f9386590.json",
+      "content_hash": "1e4ec581ef104559ca6fb09a724e3c2f653cd920b51874ae7cf11706bece1774",
+      "updated_at": "2026-03-22T18:19:46.721521+00:00"
+    },
+    "entity:node-282533:en": {
+      "id": "entity:node-282533:en",
+      "url": "https://inf.elte.hu/en/node/282533",
+      "title": "Student Reviews: ELTE Among Europe\u2019s Leading Universities",
+      "published_at": "2026-02-03T09:44:51+00:00",
+      "file_name": "8f40445eb26bd64a.json",
+      "content_hash": "198e590ed4d299c5f072d736c70773db11b9a5b76cd9b2b65d746ea7b0e7e718",
+      "updated_at": "2026-03-22T18:19:46.721521+00:00"
+    },
+    "entity:node-287751:en": {
+      "id": "entity:node-287751:en",
+      "url": "https://inf.elte.hu/en/node/287751",
+      "title": "Current Erasmus+ call for application",
+      "published_at": "2026-02-09T09:08:39+00:00",
+      "file_name": "8e09454b21583bc3.json",
+      "content_hash": "5f1833eda95b630a36f7f0363e3050868b126df8999de2b0204361c4648e9077",
+      "updated_at": "2026-03-22T18:19:46.721521+00:00"
+    },
+    "entity:node-291794:en": {
+      "id": "entity:node-291794:en",
+      "url": "https://inf.elte.hu/en/node/291794",
+      "title": "ELTE Participates in the Launch of the EU\u2011Funded FIDUCA Erasmus+ CBHE Project",
+      "published_at": "2026-02-19T10:57:41+00:00",
+      "file_name": "e9804aafa31ef89f.json",
+      "content_hash": "355626cc95416c3b973fee8fd1ba1370e7af3081ec82f70914cb4d288d96fbc0",
+      "updated_at": "2026-03-22T18:20:03.823642+00:00"
+    },
+    "entity:node-292006:en": {
+      "id": "entity:node-292006:en",
+      "url": "https://inf.elte.hu/en/node/292006",
+      "title": "Become an EU Careers Student Ambassador (2026\u20132027)",
+      "published_at": "2026-02-23T11:02:52+00:00",
+      "file_name": "b5ac15ea46229b0e.json",
+      "content_hash": "370da9321816d2b2dc5acdc9e8afcfeabdfef694a4cc93a227e86b28797e2f3b",
+      "updated_at": "2026-03-22T18:20:03.823642+00:00"
+    },
+    "entity:node-292527:en": {
+      "id": "entity:node-292527:en",
+      "url": "https://inf.elte.hu/en/node/292527",
+      "title": "Bosch x Richter Industrial Innovation Award 2026 \u2013 See into the Future!",
+      "published_at": "2026-02-25T12:20:12+00:00",
+      "file_name": "e16f823eb016b698.json",
+      "content_hash": "3d3a5415201fdcd9b8ad229617c669f70e803881f564ea64c6e56f8f2e73142e",
+      "updated_at": "2026-03-22T18:20:03.823642+00:00"
+    },
+    "entity:node-326060:en": {
+      "id": "entity:node-326060:en",
+      "url": "https://inf.elte.hu/en/node/326060",
+      "title": "Double professional success: The Faculty of Informatics at ELTE received two Marketing Diamond Awards",
+      "published_at": "2026-03-09T14:25:37+00:00",
+      "file_name": "ebd7ff412e7d674d.json",
+      "content_hash": "50d96a4547f45d7feaf0558b0bf71858aceda34fd11acee999cd0284de279b2a",
+      "updated_at": "2026-03-22T18:20:03.823642+00:00"
+    }
+  },
+  "last_sync_at": "2026-03-22T18:20:03.823642+00:00"
+}

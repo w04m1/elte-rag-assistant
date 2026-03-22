@@ -12,6 +12,8 @@ export interface CitedSourceItem {
   document: string;
   page: number | null;
   relevant_snippet: string;
+  source_type?: "pdf" | "news";
+  published_at?: string | null;
 }
 
 export interface AskResponse {
@@ -53,4 +55,17 @@ export interface JobStatusResponse {
   error?: string | null;
   vector_count?: number | null;
   result?: Record<string, unknown> | null;
+}
+
+export interface NewsJobStatusResponse {
+  status: string;
+  error?: string | null;
+  mode?: "bootstrap" | "sync" | null;
+  pages?: number | null;
+  processed_count?: number | null;
+  added_count?: number | null;
+  updated_count?: number | null;
+  unchanged_count?: number | null;
+  embedded_count?: number | null;
+  last_run_at?: string | null;
 }

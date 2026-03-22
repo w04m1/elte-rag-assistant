@@ -16,12 +16,38 @@ def client(test_faiss_db, tmp_path):
     resources["runtime_settings_store"] = runtime_store
     resources["reindex_status"] = {"status": "idle", "error": None, "vector_count": 0}
     resources["scrape_status"] = {"status": "idle", "error": None, "result": None}
+    resources["news_status"] = {
+        "status": "idle",
+        "error": None,
+        "mode": None,
+        "pages": None,
+        "processed_count": 0,
+        "added_count": 0,
+        "updated_count": 0,
+        "unchanged_count": 0,
+        "embedded_count": 0,
+        "last_run_at": None,
+    }
+    resources["news_db"] = None
     with patch("app.main.settings.runtime_settings_path", str(tmp_path / "runtime-settings.json")):
         with TestClient(app, raise_server_exceptions=False) as c:
             resources["db"] = test_faiss_db
             resources["runtime_settings_store"] = runtime_store
             resources["reindex_status"] = {"status": "idle", "error": None, "vector_count": 0}
             resources["scrape_status"] = {"status": "idle", "error": None, "result": None}
+            resources["news_status"] = {
+                "status": "idle",
+                "error": None,
+                "mode": None,
+                "pages": None,
+                "processed_count": 0,
+                "added_count": 0,
+                "updated_count": 0,
+                "unchanged_count": 0,
+                "embedded_count": 0,
+                "last_run_at": None,
+            }
+            resources["news_db"] = None
             yield c
     resources.clear()
 
@@ -43,6 +69,8 @@ def client_no_db(tmp_path):
         mock_settings.raw_data_path = str(tmp_path / "raw")
         mock_settings.scrape_download_path = str(tmp_path / "raw")
         mock_settings.scrape_manifest_path = str(tmp_path / "scrape.json")
+        mock_settings.news_faiss_index_path = str(tmp_path / "news-index")
+        mock_settings.news_sync_interval_seconds = 21600
         mock_settings.llm_provider = "openrouter"
         mock_settings.openrouter_model = "generator"
         mock_settings.reranker_model = "reranker"
@@ -243,6 +271,32 @@ class TestBackgroundJobs:
         assert resp.status_code == 200
         assert resp.json()["status"] == "queued"
         mock_job.assert_called_once()
+
+    def test_trigger_news_bootstrap(self, client):
+        with patch("app.main._run_news_job") as mock_job:
+            resp = client.post("/admin/news/bootstrap")
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["status"] == "queued"
+        assert payload["mode"] == "bootstrap"
+        mock_job.assert_called_once_with("bootstrap")
+
+    def test_trigger_news_sync(self, client):
+        with patch("app.main._run_news_job") as mock_job:
+            resp = client.post("/admin/news/sync")
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["status"] == "queued"
+        assert payload["mode"] == "sync"
+        mock_job.assert_called_once_with("sync")
+
+    def test_get_news_status(self, client):
+        resp = client.get("/admin/news")
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert "status" in payload
+        assert "processed_count" in payload
+        assert "embedded_count" in payload
 
 
 class TestDocumentsEndpoint:
