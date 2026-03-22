@@ -1,20 +1,25 @@
+import asyncio
 import logging
 import os
 import shutil
-from contextlib import asynccontextmanager
+import threading
+from contextlib import asynccontextmanager, suppress
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 
 import uvicorn
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
 from langchain_community.retrievers import BM25Retriever
 from langchain_community.vectorstores import FAISS
+from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.embeddings import get_embeddings
 from app.ingest import create_vector_db
+from app.news_ingest import run_news_pipeline
 from app.rag_chain import ask as rag_ask
 from app.runtime_settings import RuntimeSettings, RuntimeSettingsStore
 from app.scraper import run_targeted_scrape
@@ -26,6 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 resources: dict = {}
+_news_job_lock = threading.Lock()
 
 
 def _build_bm25(db: FAISS | None):
@@ -37,17 +43,17 @@ def _build_bm25(db: FAISS | None):
     return BM25Retriever.from_documents(all_docs, k=settings.retrieval_fetch_k)
 
 
-def _load_vector_db(embeddings) -> FAISS | None:
-    if not os.path.exists(settings.faiss_index_path):
-        logger.warning("Vector store not found at %s.", settings.faiss_index_path)
+def _load_vector_db(embeddings, index_path: str, label: str) -> FAISS | None:
+    if not os.path.exists(index_path):
+        logger.warning("%s vector store not found at %s.", label.capitalize(), index_path)
         return None
-    logger.info("Loading vector store from %s...", settings.faiss_index_path)
+    logger.info("Loading %s vector store from %s...", label, index_path)
     db = FAISS.load_local(
-        settings.faiss_index_path,
+        index_path,
         embeddings,
         allow_dangerous_deserialization=True,
     )
-    logger.info("Vector store loaded successfully.")
+    logger.info("%s vector store loaded successfully.", label.capitalize())
     return db
 
 
@@ -61,7 +67,10 @@ def _reload_resources_from_disk() -> None:
     if embeddings is None:
         embeddings = get_embeddings()
         resources["embeddings"] = embeddings
-    resources["db"] = _load_vector_db(embeddings)
+    resources["db"] = _load_vector_db(embeddings, settings.faiss_index_path, "document")
+    resources["news_db"] = _load_vector_db(
+        embeddings, settings.news_faiss_index_path, "news"
+    )
     _refresh_retrievers()
 
 
@@ -70,6 +79,21 @@ def _set_job_status(job_name: str, **values) -> dict:
     current.update(values)
     resources[job_name] = current
     return current
+
+
+def _default_news_status(status: str = "idle") -> dict:
+    return {
+        "status": status,
+        "error": None,
+        "mode": None,
+        "pages": None,
+        "processed_count": 0,
+        "added_count": 0,
+        "updated_count": 0,
+        "unchanged_count": 0,
+        "embedded_count": 0,
+        "last_run_at": None,
+    }
 
 
 def _run_reindex_job() -> None:
@@ -109,6 +133,54 @@ def _run_scrape_job() -> None:
         _set_job_status("scrape_status", status="failed", error=str(exc))
 
 
+def _run_news_job(mode: Literal["bootstrap", "sync"]) -> None:
+    if not _news_job_lock.acquire(blocking=False):
+        logger.info("News job already running; skipping %s request", mode)
+        return
+
+    _set_job_status(
+        "news_status",
+        status="running",
+        error=None,
+        mode=mode,
+    )
+
+    try:
+        result = run_news_pipeline(mode=mode)
+        _reload_resources_from_disk()
+        _set_job_status(
+            "news_status",
+            status="completed",
+            error=None,
+            mode=mode,
+            pages=result.get("pages"),
+            processed_count=result.get("processed_count", 0),
+            added_count=result.get("added_count", 0),
+            updated_count=result.get("updated_count", 0),
+            unchanged_count=result.get("unchanged_count", 0),
+            embedded_count=result.get("embedded_count", 0),
+            last_run_at=datetime.now(UTC).isoformat(),
+        )
+    except Exception as exc:
+        logger.exception("News %s failed", mode)
+        _set_job_status(
+            "news_status",
+            status="failed",
+            error=str(exc),
+            mode=mode,
+            last_run_at=datetime.now(UTC).isoformat(),
+        )
+    finally:
+        _news_job_lock.release()
+
+
+async def _periodic_news_sync() -> None:
+    interval_seconds = max(60, int(settings.news_sync_interval_seconds))
+    while True:
+        await asyncio.sleep(interval_seconds)
+        await asyncio.to_thread(_run_news_job, "sync")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load runtime settings and retrieval resources on startup."""
@@ -127,16 +199,29 @@ async def lifespan(app: FastAPI):
         "error": None,
         "result": None,
     }
+    resources["news_status"] = _default_news_status()
 
-    resources["db"] = _load_vector_db(embeddings)
+    resources["db"] = _load_vector_db(embeddings, settings.faiss_index_path, "document")
+    resources["news_db"] = _load_vector_db(
+        embeddings, settings.news_faiss_index_path, "news"
+    )
     _refresh_retrievers()
-    yield
-    resources.clear()
+
+    sync_task = asyncio.create_task(_periodic_news_sync())
+    resources["news_sync_task"] = sync_task
+
+    try:
+        yield
+    finally:
+        sync_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await sync_task
+        resources.clear()
 
 
 app = FastAPI(
     title="ELTE RAG Assistant API",
-    version="0.4.0",
+    version="0.5.0",
     lifespan=lifespan,
 )
 
@@ -170,6 +255,8 @@ class CitedSourceItem(BaseModel):
     document: str
     page: int | None = None
     relevant_snippet: str
+    source_type: Literal["pdf", "news"] = "pdf"
+    published_at: str | None = None
 
 
 class AskResponse(BaseModel):
@@ -203,6 +290,19 @@ class JobStatusResponse(BaseModel):
     error: str | None = None
     vector_count: int | None = None
     result: dict | None = None
+
+
+class NewsJobStatusResponse(BaseModel):
+    status: str
+    error: str | None = None
+    mode: Literal["bootstrap", "sync"] | None = None
+    pages: int | None = None
+    processed_count: int | None = None
+    added_count: int | None = None
+    updated_count: int | None = None
+    unchanged_count: int | None = None
+    embedded_count: int | None = None
+    last_run_at: str | None = None
 
 
 def _require_db():
@@ -247,12 +347,14 @@ def _safe_destination(filename: str) -> Path:
 async def ask_endpoint(request: QueryRequest):
     db = _require_db()
     bm25 = resources.get("bm25_retriever")
+    news_db = resources.get("news_db")
     runtime_settings = _get_runtime_settings_store().get()
     try:
         result = await rag_ask(
             query=request.query,
             db=db,
             bm25_retriever=bm25,
+            news_db=news_db,
             system_prompt=runtime_settings.system_prompt,
             generator_model=runtime_settings.generator_model,
             reranker_model=runtime_settings.reranker_model,
@@ -363,10 +465,47 @@ async def get_scrape_status():
     return JobStatusResponse(**resources.get("scrape_status", {"status": "idle"}))
 
 
+@app.post("/admin/news/bootstrap", response_model=NewsJobStatusResponse)
+async def trigger_news_bootstrap(background_tasks: BackgroundTasks):
+    status = resources.get("news_status", _default_news_status())
+    if status.get("status") == "running":
+        return NewsJobStatusResponse(**status)
+    next_status = _default_news_status(status="queued")
+    next_status["mode"] = "bootstrap"
+    _set_job_status(
+        "news_status",
+        **next_status,
+    )
+    background_tasks.add_task(_run_news_job, "bootstrap")
+    return NewsJobStatusResponse(**resources["news_status"])
+
+
+@app.post("/admin/news/sync", response_model=NewsJobStatusResponse)
+async def trigger_news_sync(background_tasks: BackgroundTasks):
+    status = resources.get("news_status", _default_news_status())
+    if status.get("status") == "running":
+        return NewsJobStatusResponse(**status)
+    next_status = _default_news_status(status="queued")
+    next_status["mode"] = "sync"
+    _set_job_status(
+        "news_status",
+        **next_status,
+    )
+    background_tasks.add_task(_run_news_job, "sync")
+    return NewsJobStatusResponse(**resources["news_status"])
+
+
+@app.get("/admin/news", response_model=NewsJobStatusResponse)
+async def get_news_status():
+    return NewsJobStatusResponse(**resources.get("news_status", _default_news_status()))
+
+
 @app.get("/health")
 async def health():
     db = resources.get("db")
+    news_db = resources.get("news_db")
     doc_count = len(db.docstore._dict) if db is not None else 0
+    news_count = len(news_db.docstore._dict) if news_db is not None else 0
     runtime_settings = _get_runtime_settings_store().get()
     return {
         "status": "ok",
@@ -377,6 +516,8 @@ async def health():
         "reranker_model": runtime_settings.reranker_model,
         "vector_store_loaded": db is not None,
         "vector_count": doc_count,
+        "news_vector_store_loaded": news_db is not None,
+        "news_vector_count": news_count,
     }
 
 

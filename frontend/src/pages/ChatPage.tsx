@@ -43,6 +43,7 @@ function buildCitationSourceUrl(citation: CitedSourceItem): string | null {
   if (!source) {
     return null;
   }
+  const sourceType = citation.source_type ?? "pdf";
 
   const pageFragment = citation.page ? `#page=${citation.page}` : "";
 
@@ -57,7 +58,24 @@ function buildCitationSourceUrl(citation: CitedSourceItem): string | null {
     return `${API_BASE_URL}/files/${encodeURIComponent(source)}${pageFragment}`;
   }
 
+  if (sourceType === "news" && source.startsWith("/")) {
+    return `https://www.inf.elte.hu${source}`;
+  }
+
   return null;
+}
+
+function formatPublishedAt(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleDateString();
 }
 
 function normalizeCitationText(value: string): string {
@@ -319,6 +337,9 @@ export function ChatPage() {
                         const citationKey = `${message.id}:${citationId}`;
                         const sourceUrl = buildCitationSourceUrl(source);
                         const isHighlighted = highlightedCitationKey === citationKey;
+                        const sourceType = source.source_type ?? "pdf";
+                        const publishedAt = formatPublishedAt(source.published_at);
+                        const sourceLabel = sourceType === "news" ? "News" : "PDF";
 
                         return (
                           <div
@@ -332,7 +353,7 @@ export function ChatPage() {
                             <div className="flex items-center justify-between gap-2">
                               <p className="font-medium">
                                 {citationId} • {source.document}
-                                {source.page ? `, p. ${source.page}` : ""}
+                                {sourceType === "pdf" && source.page ? `, p. ${source.page}` : ""}
                               </p>
                               {sourceUrl ? (
                                 <a
@@ -346,6 +367,10 @@ export function ChatPage() {
                                 </a>
                               ) : null}
                             </div>
+                            <p className="mt-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+                              {sourceLabel}
+                              {publishedAt ? ` • ${publishedAt}` : ""}
+                            </p>
                             <p className="mt-1 text-muted-foreground">{source.relevant_snippet}</p>
                           </div>
                         );

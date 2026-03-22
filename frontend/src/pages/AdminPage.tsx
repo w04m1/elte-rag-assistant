@@ -11,13 +11,20 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   deleteDocument,
   getAdminSettings,
+  getNewsJobStatus,
   getJobStatus,
   listAdminDocuments,
+  triggerNewsJob,
   triggerJob,
   updateAdminSettings,
   uploadDocument,
 } from "@/lib/api";
-import type { DocumentListItem, JobStatusResponse, RuntimeSettings } from "@/types/api";
+import type {
+  DocumentListItem,
+  JobStatusResponse,
+  NewsJobStatusResponse,
+  RuntimeSettings,
+} from "@/types/api";
 
 const generatorModelPresets = [
   "google/gemini-3-flash-preview",
@@ -51,6 +58,7 @@ export function AdminPage() {
 
   const [scrapeStatus, setScrapeStatus] = useState<JobStatusResponse>({ status: "idle" });
   const [reindexStatus, setReindexStatus] = useState<JobStatusResponse>({ status: "idle" });
+  const [newsStatus, setNewsStatus] = useState<NewsJobStatusResponse>({ status: "idle" });
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -58,8 +66,11 @@ export function AdminPage() {
   const [error, setError] = useState<string | null>(null);
 
   const isPolling = useMemo(
-    () => [scrapeStatus, reindexStatus].some((status) => ["queued", "running"].includes(status.status)),
-    [scrapeStatus, reindexStatus],
+    () =>
+      [scrapeStatus, reindexStatus, newsStatus].some((status) =>
+        ["queued", "running"].includes(status.status),
+      ),
+    [scrapeStatus, reindexStatus, newsStatus],
   );
 
   const loadSettings = async () => {
@@ -78,12 +89,14 @@ export function AdminPage() {
   };
 
   const loadStatuses = async () => {
-    const [nextScrapeStatus, nextReindexStatus] = await Promise.all([
+    const [nextScrapeStatus, nextReindexStatus, nextNewsStatus] = await Promise.all([
       getJobStatus("scrape"),
       getJobStatus("reindex"),
+      getNewsJobStatus(),
     ]);
     setScrapeStatus(nextScrapeStatus);
     setReindexStatus(nextReindexStatus);
+    setNewsStatus(nextNewsStatus);
   };
 
   const reloadAll = async () => {
@@ -192,6 +205,21 @@ export function AdminPage() {
     }
   };
 
+  const onTriggerNewsJob = async (mode: "bootstrap" | "sync") => {
+    setError(null);
+    try {
+      const status = await triggerNewsJob(mode);
+      setNewsStatus(status);
+      await loadStatuses();
+    } catch (requestError) {
+      const message =
+        requestError instanceof Error
+          ? requestError.message
+          : `Failed to start news ${mode}.`;
+      setError(message);
+    }
+  };
+
   const renderJobStatus = (status: JobStatusResponse) => {
     const result = (status.result || {}) as Record<string, unknown>;
     const discovered = result.discovered_count as number | undefined;
@@ -211,6 +239,29 @@ export function AdminPage() {
       </div>
     );
   };
+
+  const renderNewsJobStatus = (status: NewsJobStatusResponse) => (
+    <div className="space-y-1 text-sm text-muted-foreground">
+      <p>
+        Status: <span className="font-medium text-foreground">{status.status}</span>
+      </p>
+      {status.mode ? <p>Mode: {status.mode}</p> : null}
+      {typeof status.pages === "number" ? <p>Pages fetched: {status.pages}</p> : null}
+      {typeof status.processed_count === "number" ? (
+        <p>Processed records: {status.processed_count}</p>
+      ) : null}
+      {typeof status.added_count === "number" ? <p>Added records: {status.added_count}</p> : null}
+      {typeof status.updated_count === "number" ? <p>Updated records: {status.updated_count}</p> : null}
+      {typeof status.unchanged_count === "number" ? (
+        <p>Unchanged records: {status.unchanged_count}</p>
+      ) : null}
+      {typeof status.embedded_count === "number" ? (
+        <p>News vectors: {status.embedded_count}</p>
+      ) : null}
+      {status.last_run_at ? <p>Last run: {new Date(status.last_run_at).toLocaleString()}</p> : null}
+      {status.error ? <p className="text-red-700">Error: {status.error}</p> : null}
+    </div>
+  );
 
   if (isLoading && !settings) {
     return (
@@ -364,7 +415,7 @@ export function AdminPage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <CardTitle>Scrape ELTE IK</CardTitle>
@@ -382,6 +433,24 @@ export function AdminPage() {
             {renderJobStatus(reindexStatus)}
             <p className="text-xs text-muted-foreground">
               Run reindex after ingestion changes to refresh page metadata used in citation links.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <CardTitle>News Index</CardTitle>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => void onTriggerNewsJob("bootstrap")}>
+                Bootstrap (4 pages)
+              </Button>
+              <Button onClick={() => void onTriggerNewsJob("sync")}>Sync (2 pages)</Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {renderNewsJobStatus(newsStatus)}
+            <p className="text-xs text-muted-foreground">
+              Automatic sync runs every 6 hours. Manual bootstrap creates the initial news index.
             </p>
           </CardContent>
         </Card>

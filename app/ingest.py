@@ -110,18 +110,11 @@ def create_vector_db(
     output_dir = output_dir or settings.faiss_index_path
 
     pdf_paths = sorted(Path(source_dir).glob("*.pdf"))
-    news_documents = _load_news_documents()
-
-    if not pdf_paths and not news_documents:
-        logger.warning(
-            "No ingestion inputs found in %s and %s",
-            source_dir,
-            settings.scrape_news_path,
-        )
+    if not pdf_paths:
+        logger.warning("No PDF ingestion inputs found in %s", source_dir)
         return
 
     logger.info("Found %d PDF files in %s", len(pdf_paths), source_dir)
-    logger.info("Found %d normalized news files in %s", len(news_documents), settings.scrape_news_path)
 
     documents: list[Document] = []
 
@@ -172,8 +165,6 @@ def create_vector_db(
                 pdf_path.name,
                 len(result.document.pages),
             )
-
-    documents.extend(news_documents)
 
     logger.info("Total chunks/documents indexed: %d", len(documents))
 

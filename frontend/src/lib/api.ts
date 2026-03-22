@@ -2,6 +2,7 @@ import type {
   AskResponse,
   DocumentsResponse,
   JobStatusResponse,
+  NewsJobStatusResponse,
   RuntimeSettings,
   RuntimeSettingsUpdate,
 } from "@/types/api";
@@ -82,4 +83,14 @@ export async function triggerJob(job: "scrape" | "reindex"): Promise<JobStatusRe
 
 export async function getJobStatus(job: "scrape" | "reindex"): Promise<JobStatusResponse> {
   return apiFetch<JobStatusResponse>(`/admin/${job}`);
+}
+
+export async function triggerNewsJob(
+  mode: "bootstrap" | "sync",
+): Promise<NewsJobStatusResponse> {
+  return apiFetch<NewsJobStatusResponse>(`/admin/news/${mode}`, { method: "POST" });
+}
+
+export async function getNewsJobStatus(): Promise<NewsJobStatusResponse> {
+  return apiFetch<NewsJobStatusResponse>("/admin/news");
 }

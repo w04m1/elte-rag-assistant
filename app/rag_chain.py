@@ -18,9 +18,12 @@ logger = logging.getLogger(__name__)
 class CitedSource(BaseModel):
     """WIP: A single cited source from the context."""
 
+    source: str
     document: str
     page: int | None = None
     relevant_snippet: str
+    source_type: Literal["pdf", "news"] = "pdf"
+    published_at: str | None = None
 
     @field_validator("page", mode="before")
     @classmethod
@@ -122,6 +125,15 @@ def _build_context_items(docs: list[Document]) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     for index, doc in enumerate(docs, start=1):
         meta = doc.metadata
+        source = str(meta.get("source", "unknown"))
+        raw_source_type = str(meta.get("source_type", "")).strip().lower()
+        source_type: Literal["pdf", "news"]
+        if raw_source_type in {"pdf", "news"}:
+            source_type = raw_source_type  # type: ignore[assignment]
+        elif source.startswith("http://") or source.startswith("https://"):
+            source_type = "news"
+        else:
+            source_type = "pdf"
         source = meta.get("title", meta.get("source", "unknown"))
         page = meta.get("page", "?")
         items.append(
@@ -131,7 +143,13 @@ def _build_context_items(docs: list[Document]) -> list[dict[str, Any]]:
                 "page": page if page != "?" else None,
                 "content": doc.page_content,
                 "snippet": doc.page_content[:300],
-                "source": meta.get("source", "unknown"),
+                "source": str(meta.get("source", "unknown")),
+                "source_type": source_type,
+                "published_at": (
+                    str(meta.get("published_at"))
+                    if meta.get("published_at") is not None
+                    else None
+                ),
             }
         )
     return items
@@ -240,6 +258,8 @@ def _build_cited_sources(
                 "document": item["document"],
                 "page": item["page"],
                 "relevant_snippet": item["snippet"],
+                "source_type": item["source_type"],
+                "published_at": item["published_at"],
             }
         )
 
@@ -253,6 +273,8 @@ def _build_cited_sources(
             "document": item["document"],
             "page": item["page"],
             "relevant_snippet": item["snippet"],
+            "source_type": item["source_type"],
+            "published_at": item["published_at"],
         }
         for item in context_items[: min(3, len(context_items))]
     ]
@@ -383,6 +405,7 @@ async def ask(
     query: str,
     db: FAISS,
     bm25_retriever=None,
+    news_db: FAISS | None = None,
     *,
     system_prompt: str | None = None,
     generator_model: str | None = None,
@@ -392,7 +415,7 @@ async def ask(
     k = settings.retrieval_k
     fetch_k = settings.retrieval_fetch_k
 
-    # Retrieval
+    # Retrieval from the primary PDF/document store
     if settings.retrieval_hybrid and bm25_retriever is not None:
         faiss_retriever = db.as_retriever(
             search_type="mmr",
@@ -412,6 +435,23 @@ async def ask(
             search_kwargs={"k": fetch_k, "fetch_k": fetch_k * 2},
         )
         docs = retriever.invoke(query)
+
+    # Retrieval from the separate news store and fusion with document candidates.
+    news_docs: list[Document] = []
+    if news_db is not None:
+        news_retriever = news_db.as_retriever(
+            search_type="mmr",
+            search_kwargs={"k": fetch_k, "fetch_k": fetch_k * 2},
+        )
+        news_docs = news_retriever.invoke(query)
+
+    if news_docs and docs:
+        docs = _reciprocal_rank_fusion(
+            [docs, news_docs],
+            weights=[1.0, 1.0],
+        )[:fetch_k]
+    elif news_docs:
+        docs = news_docs[:fetch_k]
 
     # Reranking
     docs = await _rerank(query, docs, top_k=k, reranker_model=reranker_model)
