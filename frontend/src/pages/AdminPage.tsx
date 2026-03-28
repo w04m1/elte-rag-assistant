@@ -13,6 +13,8 @@ import {
   getAdminSettings,
   getNewsJobStatus,
   getJobStatus,
+  getUsageLogs,
+  getUsageStats,
   listAdminDocuments,
   triggerNewsJob,
   triggerJob,
@@ -24,6 +26,8 @@ import type {
   JobStatusResponse,
   NewsJobStatusResponse,
   RuntimeSettings,
+  UsageLogEntry,
+  UsageStatsResponse,
 } from "@/types/api";
 
 const generatorModelPresets = [
@@ -45,6 +49,25 @@ function presetForModel(model: string, presets: string[]): string {
   return presets.includes(model) ? model : "custom";
 }
 
+function formatRate(value: number): string {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function formatTimestamp(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleString();
+}
+
+function trimQuery(query: string, maxLength = 220): string {
+  if (query.length <= maxLength) {
+    return query;
+  }
+  return `${query.slice(0, maxLength - 1)}…`;
+}
+
 export function AdminPage() {
   const [settings, setSettings] = useState<RuntimeSettings | null>(null);
   const [generatorPreset, setGeneratorPreset] = useState("google/gemini-3-flash-preview");
@@ -61,6 +84,8 @@ export function AdminPage() {
   });
   const [reindexStatus, setReindexStatus] = useState<JobStatusResponse>({ status: "idle" });
   const [newsStatus, setNewsStatus] = useState<NewsJobStatusResponse>({ status: "idle" });
+  const [usageStats, setUsageStats] = useState<UsageStatsResponse | null>(null);
+  const [usageEntries, setUsageEntries] = useState<UsageLogEntry[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -101,11 +126,20 @@ export function AdminPage() {
     setNewsStatus(nextNewsStatus);
   };
 
+  const loadUsage = async () => {
+    const [nextUsageStats, nextUsageEntries] = await Promise.all([
+      getUsageStats(7),
+      getUsageLogs(50),
+    ]);
+    setUsageStats(nextUsageStats);
+    setUsageEntries(nextUsageEntries.entries);
+  };
+
   const reloadAll = async () => {
     setError(null);
     setIsLoading(true);
     try {
-      await Promise.all([loadSettings(), loadDocuments(), loadStatuses()]);
+      await Promise.all([loadSettings(), loadDocuments(), loadStatuses(), loadUsage()]);
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : "Failed to load admin panel data.";
       setError(message);
@@ -292,6 +326,58 @@ export function AdminPage() {
 
       {error ? <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Queries</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {usageEntries.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No usage records yet.</p>
+          ) : (
+            <div className="max-h-[28rem] overflow-x-auto overflow-y-auto rounded-md border border-border">
+              <table className="min-w-[980px] w-full text-left text-sm">
+                <thead className="sticky top-0 bg-muted/80 text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Time</th>
+                    <th className="w-[42%] min-w-[360px] px-3 py-2 font-medium">Query</th>
+                    <th className="px-3 py-2 font-medium">Status</th>
+                    <th className="px-3 py-2 font-medium">Confidence</th>
+                    <th className="px-3 py-2 font-medium">Latency</th>
+                    <th className="px-3 py-2 font-medium">Citations</th>
+                    <th className="px-3 py-2 font-medium">Feedback</th>
+                    <th className="px-3 py-2 font-medium">Model</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {usageEntries.map((entry, index) => (
+                    <tr key={`${entry.timestamp_utc}-${index}`} className="border-t border-border/60">
+                      <td className="px-3 py-2 align-top text-muted-foreground">
+                        {formatTimestamp(entry.timestamp_utc)}
+                      </td>
+                      <td className="px-3 py-2 align-top whitespace-normal break-words">
+                        {trimQuery(entry.query_text)}
+                      </td>
+                      <td className="px-3 py-2 align-top">{entry.status}</td>
+                      <td className="px-3 py-2 align-top">{entry.confidence}</td>
+                      <td className="px-3 py-2 align-top">{entry.latency_ms.toFixed(2)} ms</td>
+                      <td className="px-3 py-2 align-top">{entry.cited_sources_count}</td>
+                      <td className="px-3 py-2 align-top">
+                        {entry.feedback === true
+                          ? "helpful"
+                          : entry.feedback === false
+                            ? "not helpful"
+                            : "pending"}
+                      </td>
+                      <td className="px-3 py-2 align-top">{entry.model_used || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -465,6 +551,70 @@ export function AdminPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Usage Overview</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          {usageStats ? (
+            <>
+              <p>
+                Total queries (last {usageStats.window_days} days):{" "}
+                <span className="font-medium text-foreground">{usageStats.total_queries}</span>
+              </p>
+              <p>
+                Average latency:{" "}
+                <span className="font-medium text-foreground">{usageStats.avg_latency_ms.toFixed(2)} ms</span>
+              </p>
+              <p>
+                Citation presence rate:{" "}
+                <span className="font-medium text-foreground">
+                  {formatRate(usageStats.citation_presence_rate)}
+                </span>
+              </p>
+              <p>
+                Non-empty answer rate:{" "}
+                <span className="font-medium text-foreground">
+                  {formatRate(usageStats.non_empty_answer_rate)}
+                </span>
+              </p>
+              <p>
+                Source mix (PDF / News):{" "}
+                <span className="font-medium text-foreground">
+                  {usageStats.source_mix_pdf_vs_news.pdf} / {usageStats.source_mix_pdf_vs_news.news}
+                </span>
+              </p>
+              <p>
+                Feedback coverage:{" "}
+                <span className="font-medium text-foreground">
+                  {formatRate(usageStats.feedback_coverage_rate ?? 0)}
+                </span>
+              </p>
+              <p>
+                Helpful feedback rate:{" "}
+                <span className="font-medium text-foreground">
+                  {formatRate(usageStats.helpful_feedback_rate ?? 0)}
+                </span>
+              </p>
+              <p>
+                Confidence distribution:{" "}
+                <span className="font-medium text-foreground">
+                  high {usageStats.confidence_distribution.high || 0}, medium{" "}
+                  {usageStats.confidence_distribution.medium || 0}, low{" "}
+                  {usageStats.confidence_distribution.low || 0}, unknown{" "}
+                  {usageStats.confidence_distribution.unknown || 0}
+                </span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Generated: {formatTimestamp(usageStats.generated_at_utc)}
+              </p>
+            </>
+          ) : (
+            <p className="text-muted-foreground">No usage statistics available yet.</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

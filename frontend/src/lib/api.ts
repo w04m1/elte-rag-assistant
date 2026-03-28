@@ -1,10 +1,13 @@
 import type {
   AskResponse,
   DocumentsResponse,
+  FeedbackResponse,
   JobStatusResponse,
   NewsJobStatusResponse,
   RuntimeSettings,
   RuntimeSettingsUpdate,
+  UsageLogResponse,
+  UsageStatsResponse,
 } from "@/types/api";
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "/api").replace(
@@ -37,6 +40,17 @@ export async function askQuestion(query: string): Promise<AskResponse> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query }),
+  });
+}
+
+export async function submitFeedback(
+  requestId: string,
+  helpful: boolean,
+): Promise<FeedbackResponse> {
+  return apiFetch<FeedbackResponse>("/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ request_id: requestId, helpful }),
   });
 }
 
@@ -97,4 +111,14 @@ export async function triggerNewsJob(
 
 export async function getNewsJobStatus(): Promise<NewsJobStatusResponse> {
   return apiFetch<NewsJobStatusResponse>("/admin/news");
+}
+
+export async function getUsageLogs(limit = 200): Promise<UsageLogResponse> {
+  return apiFetch<UsageLogResponse>(`/admin/usage?limit=${encodeURIComponent(String(limit))}`);
+}
+
+export async function getUsageStats(windowDays = 7): Promise<UsageStatsResponse> {
+  return apiFetch<UsageStatsResponse>(
+    `/admin/usage/stats?window_days=${encodeURIComponent(String(windowDays))}`,
+  );
 }

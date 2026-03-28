@@ -1,12 +1,12 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Bot, ExternalLink, LoaderCircle, Send, User } from "lucide-react";
+import { Bot, ExternalLink, LoaderCircle, Send, ThumbsDown, ThumbsUp, User } from "lucide-react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { API_BASE_URL, askQuestion } from "@/lib/api";
+import { API_BASE_URL, askQuestion, submitFeedback } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { CitedSourceItem } from "@/types/api";
 
@@ -17,6 +17,8 @@ type ChatMessage = {
   confidence?: string;
   reasoning?: string;
   citedSources?: CitedSourceItem[];
+  requestId?: string;
+  feedback?: boolean | null;
 };
 
 const welcomeMessage: ChatMessage = {
@@ -192,6 +194,9 @@ export function ChatPage() {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [highlightedCitationKey, setHighlightedCitationKey] = useState<string | null>(null);
+  const [feedbackPendingByRequestId, setFeedbackPendingByRequestId] = useState<
+    Record<string, boolean>
+  >({});
 
   const canSend = useMemo(() => query.trim().length > 0 && !isSending, [isSending, query]);
 
@@ -255,6 +260,8 @@ export function ChatPage() {
         confidence: response.confidence,
         reasoning: response.reasoning,
         citedSources: response.cited_sources,
+        requestId: response.request_id || undefined,
+        feedback: null,
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (requestError) {
@@ -262,6 +269,45 @@ export function ChatPage() {
       setError(message);
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const onFeedback = async (messageId: string, requestId: string, helpful: boolean) => {
+    setError(null);
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.id === messageId
+          ? {
+              ...message,
+              feedback: helpful,
+            }
+          : message,
+      ),
+    );
+    setFeedbackPendingByRequestId((prev) => ({ ...prev, [requestId]: true }));
+
+    try {
+      await submitFeedback(requestId, helpful);
+    } catch (requestError) {
+      const message =
+        requestError instanceof Error ? requestError.message : "Failed to save feedback.";
+      setError(message);
+      setMessages((prev) =>
+        prev.map((entry) =>
+          entry.id === messageId
+            ? {
+                ...entry,
+                feedback: null,
+              }
+            : entry,
+        ),
+      );
+    } finally {
+      setFeedbackPendingByRequestId((prev) => {
+        const next = { ...prev };
+        delete next[requestId];
+        return next;
+      });
     }
   };
 
@@ -342,6 +388,38 @@ export function ChatPage() {
 
                 {message.role === "assistant" && message.reasoning ? (
                   <p className="mt-1 text-xs text-muted-foreground">Reasoning: {message.reasoning}</p>
+                ) : null}
+
+                {message.role === "assistant" && message.requestId ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <p className="text-xs text-muted-foreground">Was this response helpful?</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "h-7 px-2 text-xs",
+                        message.feedback === true ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "",
+                      )}
+                      onClick={() => onFeedback(message.id, message.requestId!, true)}
+                      disabled={Boolean(feedbackPendingByRequestId[message.requestId])}
+                    >
+                      <ThumbsUp className="mr-1 h-3.5 w-3.5" />
+                      Helpful
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "h-7 px-2 text-xs",
+                        message.feedback === false ? "border-rose-500 bg-rose-50 text-rose-700" : "",
+                      )}
+                      onClick={() => onFeedback(message.id, message.requestId!, false)}
+                      disabled={Boolean(feedbackPendingByRequestId[message.requestId])}
+                    >
+                      <ThumbsDown className="mr-1 h-3.5 w-3.5" />
+                      Not helpful
+                    </Button>
+                  </div>
                 ) : null}
 
                 {message.role === "assistant" && message.citedSources?.length ? (

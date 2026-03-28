@@ -5,18 +5,21 @@ import { vi } from "vitest";
 import { ChatPage } from "@/pages/ChatPage";
 
 const askQuestionMock = vi.fn();
+const submitFeedbackMock = vi.fn();
 
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
   return {
     ...actual,
     askQuestion: (...args: unknown[]) => askQuestionMock(...args),
+    submitFeedback: (...args: unknown[]) => submitFeedbackMock(...args),
   };
 });
 
 describe("ChatPage", () => {
   beforeEach(() => {
     askQuestionMock.mockReset();
+    submitFeedbackMock.mockReset();
     window.localStorage.clear();
   });
 
@@ -161,5 +164,38 @@ describe("ChatPage", () => {
 
     expect(screen.queryByText("Persist me")).not.toBeInTheDocument();
     expect(screen.getByText(/Hi! Ask me about ELTE regulations/i)).toBeInTheDocument();
+  });
+
+  it("submits helpful/not-helpful feedback for assistant responses", async () => {
+    askQuestionMock.mockResolvedValue({
+      request_id: "req-123",
+      answer: "Feedback enabled response.",
+      sources: [],
+      model_used: "demo-model",
+      reasoning: "",
+      confidence: "high",
+      cited_sources: [],
+    });
+    submitFeedbackMock.mockResolvedValue({
+      status: "updated",
+      request_id: "req-123",
+      helpful: true,
+    });
+
+    const user = userEvent.setup();
+    render(<ChatPage />);
+
+    await user.type(screen.getByLabelText("Question"), "Can I leave feedback?");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Feedback enabled response/i)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /^Helpful$/i }));
+
+    await waitFor(() => {
+      expect(submitFeedbackMock).toHaveBeenCalledWith("req-123", true);
+    });
   });
 });

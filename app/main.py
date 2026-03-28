@@ -6,7 +6,9 @@ import threading
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
+from time import perf_counter
 from typing import Literal
+from uuid import uuid4
 
 import uvicorn
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
@@ -23,6 +25,12 @@ from app.ingest import create_vector_db
 from app.news_ingest import run_news_pipeline
 from app.rag_chain import ask as rag_ask
 from app.runtime_settings import RuntimeSettings, RuntimeSettingsStore
+from app.usage_log import (
+    append_usage_entry,
+    compute_usage_stats,
+    read_recent_usage_entries,
+    set_usage_feedback,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -259,6 +267,7 @@ class CitedSourceItem(BaseModel):
 
 
 class AskResponse(BaseModel):
+    request_id: str
     answer: str
     sources: list[SourceItem]
     model_used: str
@@ -302,6 +311,59 @@ class NewsJobStatusResponse(BaseModel):
     unchanged_count: int | None = None
     embedded_count: int | None = None
     last_run_at: str | None = None
+
+
+class UsageSourceTypes(BaseModel):
+    pdf: int = 0
+    news: int = 0
+
+
+class UsageLogEntry(BaseModel):
+    request_id: str = ""
+    timestamp_utc: str
+    query_text: str
+    answer_length_chars: int = 0
+    confidence: str = "unknown"
+    model_used: str = ""
+    reranker_model: str = ""
+    latency_ms: float = 0.0
+    cited_sources_count: int = 0
+    source_types: UsageSourceTypes = Field(default_factory=UsageSourceTypes)
+    feedback: bool | None = None
+    feedback_timestamp_utc: str | None = None
+    status: Literal["ok", "error"] = "ok"
+
+
+class UsageLogResponse(BaseModel):
+    entries: list[UsageLogEntry]
+    count: int
+    limit: int
+
+
+class UsageStatsResponse(BaseModel):
+    window_days: int
+    generated_at_utc: str
+    total_queries: int
+    avg_latency_ms: float
+    citation_presence_rate: float
+    non_empty_answer_rate: float
+    confidence_distribution: dict[str, int]
+    source_mix_pdf_vs_news: UsageSourceTypes
+    helpful_feedback_count: int
+    unhelpful_feedback_count: int
+    helpful_feedback_rate: float
+    feedback_coverage_rate: float
+
+
+class FeedbackRequest(BaseModel):
+    request_id: str
+    helpful: bool
+
+
+class FeedbackResponse(BaseModel):
+    status: Literal["updated"]
+    request_id: str
+    helpful: bool
 
 
 def _require_db():
@@ -352,13 +414,33 @@ def _safe_source_destination(filename: str) -> Path:
     return target_dir / safe_name
 
 
+def _count_source_types(cited_sources: list[dict]) -> dict[str, int]:
+    counts = {"pdf": 0, "news": 0}
+    for source in cited_sources:
+        source_type = str(source.get("source_type", "pdf")).strip().lower()
+        if source_type == "news":
+            counts["news"] += 1
+        else:
+            counts["pdf"] += 1
+    return counts
+
+
+def _safe_append_usage_entry(payload: dict) -> None:
+    try:
+        append_usage_entry(settings.usage_log_path, payload)
+    except Exception:
+        logger.exception("Failed to write usage log entry")
+
+
 @app.post("/ask", response_model=AskResponse)
 async def ask_endpoint(request: QueryRequest):
-    db = _require_db()
-    bm25 = resources.get("bm25_retriever")
-    news_db = resources.get("news_db")
+    started_at = perf_counter()
+    request_id = uuid4().hex
     runtime_settings = _get_runtime_settings_store().get()
     try:
+        db = _require_db()
+        bm25 = resources.get("bm25_retriever")
+        news_db = resources.get("news_db")
         result = await rag_ask(
             query=request.query,
             db=db,
@@ -368,13 +450,48 @@ async def ask_endpoint(request: QueryRequest):
             generator_model=runtime_settings.generator_model,
             reranker_model=runtime_settings.reranker_model,
         )
+    except HTTPException:
+        latency_ms = round((perf_counter() - started_at) * 1000, 2)
+        _safe_append_usage_entry(
+            {
+                "timestamp_utc": datetime.now(UTC).isoformat(),
+                "request_id": request_id,
+                "query_text": request.query,
+                "answer_length_chars": 0,
+                "confidence": "unknown",
+                "model_used": runtime_settings.generator_model,
+                "reranker_model": runtime_settings.reranker_model,
+                "latency_ms": latency_ms,
+                "cited_sources_count": 0,
+                "source_types": {"pdf": 0, "news": 0},
+                "status": "error",
+            }
+        )
+        raise
     except Exception as exc:
+        latency_ms = round((perf_counter() - started_at) * 1000, 2)
+        _safe_append_usage_entry(
+            {
+                "timestamp_utc": datetime.now(UTC).isoformat(),
+                "request_id": request_id,
+                "query_text": request.query,
+                "answer_length_chars": 0,
+                "confidence": "unknown",
+                "model_used": runtime_settings.generator_model,
+                "reranker_model": runtime_settings.reranker_model,
+                "latency_ms": latency_ms,
+                "cited_sources_count": 0,
+                "source_types": {"pdf": 0, "news": 0},
+                "status": "error",
+            }
+        )
         logger.exception("RAG chain error")
         raise HTTPException(
             status_code=502, detail=f"LLM generation failed: {exc}"
         ) from exc
 
-    return AskResponse(
+    response = AskResponse(
+        request_id=request_id,
         answer=result.answer,
         sources=[
             SourceItem(content=s["content"], document=s["document"], page=s.get("page"))
@@ -384,6 +501,39 @@ async def ask_endpoint(request: QueryRequest):
         reasoning=result.reasoning,
         confidence=result.confidence,
         cited_sources=[CitedSourceItem(**cs) for cs in result.cited_sources],
+    )
+    latency_ms = round((perf_counter() - started_at) * 1000, 2)
+    _safe_append_usage_entry(
+        {
+            "timestamp_utc": datetime.now(UTC).isoformat(),
+            "request_id": request_id,
+            "query_text": request.query,
+            "answer_length_chars": len(result.answer or ""),
+            "confidence": result.confidence or "unknown",
+            "model_used": result.model_used or runtime_settings.generator_model,
+            "reranker_model": runtime_settings.reranker_model,
+            "latency_ms": latency_ms,
+            "cited_sources_count": len(result.cited_sources),
+            "source_types": _count_source_types(result.cited_sources),
+            "status": "ok",
+        }
+    )
+    return response
+
+
+@app.post("/feedback", response_model=FeedbackResponse)
+async def submit_feedback(request: FeedbackRequest):
+    updated = set_usage_feedback(
+        settings.usage_log_path,
+        request_id=request.request_id,
+        helpful=request.helpful,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Request ID not found.")
+    return FeedbackResponse(
+        status="updated",
+        request_id=request.request_id,
+        helpful=request.helpful,
     )
 
 
@@ -515,6 +665,24 @@ async def trigger_news_sync(background_tasks: BackgroundTasks):
 @app.get("/admin/news", response_model=NewsJobStatusResponse)
 async def get_news_status():
     return NewsJobStatusResponse(**resources.get("news_status", _default_news_status()))
+
+
+@app.get("/admin/usage", response_model=UsageLogResponse)
+async def get_usage_entries(limit: int = 200):
+    bounded_limit = min(max(1, int(limit)), 1000)
+    entries = read_recent_usage_entries(settings.usage_log_path, limit=bounded_limit)
+    return UsageLogResponse(
+        entries=[UsageLogEntry(**entry) for entry in entries],
+        count=len(entries),
+        limit=bounded_limit,
+    )
+
+
+@app.get("/admin/usage/stats", response_model=UsageStatsResponse)
+async def get_usage_statistics(window_days: int = 7):
+    bounded_window_days = min(max(1, int(window_days)), 365)
+    stats = compute_usage_stats(settings.usage_log_path, window_days=bounded_window_days)
+    return UsageStatsResponse(**stats)
 
 
 @app.get("/health")

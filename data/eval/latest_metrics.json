@@ -1,0 +1,192 @@
+{
+  "generated_at_utc": "2026-03-28T14:43:51.054044+00:00",
+  "api_base_url": "http://127.0.0.1:8001",
+  "questions_path": "data/eval/questions.json",
+  "total_queries": 12,
+  "successful_queries": 12,
+  "non_empty_answer_count": 12,
+  "citation_presence_count": 12,
+  "non_empty_answer_rate": 1.0,
+  "citation_presence_rate": 1.0,
+  "avg_latency_ms": 6945.0,
+  "confidence_distribution": {
+    "high": 12,
+    "medium": 0,
+    "low": 0,
+    "unknown": 0
+  },
+  "source_mix_pdf_vs_news": {
+    "pdf": 44,
+    "news": 6
+  },
+  "results": [
+    {
+      "query": "When is the thesis submission deadline and what happens if I miss it?",
+      "status": "ok",
+      "error": null,
+      "latency_ms": 9198.16,
+      "answer_length_chars": 564,
+      "confidence": "high",
+      "model_used": "google/gemini-3-flash-preview",
+      "cited_sources_count": 4,
+      "source_types": {
+        "pdf": 4,
+        "news": 0
+      }
+    },
+    {
+      "query": "How can I register for elective courses in Neptun?",
+      "status": "ok",
+      "error": null,
+      "latency_ms": 6905.19,
+      "answer_length_chars": 658,
+      "confidence": "high",
+      "model_used": "google/gemini-3-flash-preview",
+      "cited_sources_count": 3,
+      "source_types": {
+        "pdf": 3,
+        "news": 0
+      }
+    },
+    {
+      "query": "What are the tuition payment deadlines?",
+      "status": "ok",
+      "error": null,
+      "latency_ms": 5928.11,
+      "answer_length_chars": 647,
+      "confidence": "high",
+      "model_used": "google/gemini-3-flash-preview",
+      "cited_sources_count": 5,
+      "source_types": {
+        "pdf": 5,
+        "news": 0
+      }
+    },
+    {
+      "query": "How do I request a passive semester?",
+      "status": "ok",
+      "error": null,
+      "latency_ms": 5566.1,
+      "answer_length_chars": 749,
+      "confidence": "high",
+      "model_used": "google/gemini-3-flash-preview",
+      "cited_sources_count": 5,
+      "source_types": {
+        "pdf": 5,
+        "news": 0
+      }
+    },
+    {
+      "query": "What are the requirements for internship completion?",
+      "status": "ok",
+      "error": null,
+      "latency_ms": 6820.05,
+      "answer_length_chars": 840,
+      "confidence": "high",
+      "model_used": "google/gemini-3-flash-preview",
+      "cited_sources_count": 5,
+      "source_types": {
+        "pdf": 5,
+        "news": 0
+      }
+    },
+    {
+      "query": "What should I do if I fail an exam and need a retake?",
+      "status": "ok",
+      "error": null,
+      "latency_ms": 5840.11,
+      "answer_length_chars": 842,
+      "confidence": "high",
+      "model_used": "google/gemini-3-flash-preview",
+      "cited_sources_count": 5,
+      "source_types": {
+        "pdf": 5,
+        "news": 0
+      }
+    },
+    {
+      "query": "How can I apply for Erasmus opportunities at ELTE IK?",
+      "status": "ok",
+      "error": null,
+      "latency_ms": 5308.02,
+      "answer_length_chars": 505,
+      "confidence": "high",
+      "model_used": "google/gemini-3-flash-preview",
+      "cited_sources_count": 2,
+      "source_types": {
+        "pdf": 1,
+        "news": 1
+      }
+    },
+    {
+      "query": "Which office should I contact for student administration questions?",
+      "status": "ok",
+      "error": null,
+      "latency_ms": 5714.59,
+      "answer_length_chars": 636,
+      "confidence": "high",
+      "model_used": "google/gemini-3-flash-preview",
+      "cited_sources_count": 5,
+      "source_types": {
+        "pdf": 5,
+        "news": 0
+      }
+    },
+    {
+      "query": "What documents are needed for enrollment in the current semester?",
+      "status": "ok",
+      "error": null,
+      "latency_ms": 11503.75,
+      "answer_length_chars": 881,
+      "confidence": "high",
+      "model_used": "google/gemini-3-flash-preview",
+      "cited_sources_count": 3,
+      "source_types": {
+        "pdf": 3,
+        "news": 0
+      }
+    },
+    {
+      "query": "Are there any recent faculty announcements about student opportunities?",
+      "status": "ok",
+      "error": null,
+      "latency_ms": 6936.95,
+      "answer_length_chars": 1010,
+      "confidence": "high",
+      "model_used": "google/gemini-3-flash-preview",
+      "cited_sources_count": 5,
+      "source_types": {
+        "pdf": 0,
+        "news": 5
+      }
+    },
+    {
+      "query": "How are final examination components evaluated?",
+      "status": "ok",
+      "error": null,
+      "latency_ms": 7818.06,
+      "answer_length_chars": 872,
+      "confidence": "high",
+      "model_used": "google/gemini-3-flash-preview",
+      "cited_sources_count": 4,
+      "source_types": {
+        "pdf": 4,
+        "news": 0
+      }
+    },
+    {
+      "query": "What is the process for thesis upload and defense preparation?",
+      "status": "ok",
+      "error": null,
+      "latency_ms": 5800.88,
+      "answer_length_chars": 1020,
+      "confidence": "high",
+      "model_used": "google/gemini-3-flash-preview",
+      "cited_sources_count": 4,
+      "source_types": {
+        "pdf": 4,
+        "news": 0
+      }
+    }
+  ]
+}

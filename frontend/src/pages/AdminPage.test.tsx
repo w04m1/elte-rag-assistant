@@ -13,6 +13,8 @@ const triggerJobMock = vi.fn();
 const triggerNewsJobMock = vi.fn();
 const uploadDocumentMock = vi.fn();
 const deleteDocumentMock = vi.fn();
+const getUsageLogsMock = vi.fn();
+const getUsageStatsMock = vi.fn();
 
 vi.mock("@/lib/api", () => ({
   getAdminSettings: (...args: unknown[]) => getAdminSettingsMock(...args),
@@ -24,6 +26,8 @@ vi.mock("@/lib/api", () => ({
   triggerNewsJob: (...args: unknown[]) => triggerNewsJobMock(...args),
   uploadDocument: (...args: unknown[]) => uploadDocumentMock(...args),
   deleteDocument: (...args: unknown[]) => deleteDocumentMock(...args),
+  getUsageLogs: (...args: unknown[]) => getUsageLogsMock(...args),
+  getUsageStats: (...args: unknown[]) => getUsageStatsMock(...args),
 }));
 
 describe("AdminPage", () => {
@@ -37,6 +41,8 @@ describe("AdminPage", () => {
     triggerNewsJobMock.mockReset();
     uploadDocumentMock.mockReset();
     deleteDocumentMock.mockReset();
+    getUsageLogsMock.mockReset();
+    getUsageStatsMock.mockReset();
 
     getAdminSettingsMock.mockResolvedValue({
       generator_model: "google/gemini-3-flash-preview",
@@ -67,6 +73,34 @@ describe("AdminPage", () => {
     });
     triggerJobMock.mockResolvedValue({ status: "queued" });
     triggerNewsJobMock.mockResolvedValue({ status: "queued", mode: "sync" });
+    getUsageStatsMock.mockResolvedValue({
+      window_days: 7,
+      generated_at_utc: "2026-03-28T10:30:00+00:00",
+      total_queries: 12,
+      avg_latency_ms: 154.2,
+      citation_presence_rate: 0.75,
+      non_empty_answer_rate: 1,
+      confidence_distribution: { high: 6, medium: 4, low: 2, unknown: 0 },
+      source_mix_pdf_vs_news: { pdf: 18, news: 5 },
+    });
+    getUsageLogsMock.mockResolvedValue({
+      entries: [
+        {
+          timestamp_utc: "2026-03-28T10:29:00+00:00",
+          query_text: "When is the thesis submission deadline?",
+          answer_length_chars: 120,
+          confidence: "high",
+          model_used: "google/gemini-3-flash-preview",
+          reranker_model: "google/gemini-3-flash-preview",
+          latency_ms: 132.5,
+          cited_sources_count: 2,
+          source_types: { pdf: 2, news: 0 },
+          status: "ok",
+        },
+      ],
+      count: 1,
+      limit: 50,
+    });
   });
 
   it("submits updated runtime settings payload", async () => {
@@ -119,5 +153,31 @@ describe("AdminPage", () => {
 
     expect(triggerNewsJobMock).toHaveBeenCalledWith("bootstrap");
     expect(triggerNewsJobMock).toHaveBeenCalledWith("sync");
+  });
+
+  it("renders usage overview and recent queries", async () => {
+    render(<AdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Usage Overview")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/Total queries \(last 7 days\):/i)).toBeInTheDocument();
+    expect(screen.getByText("12")).toBeInTheDocument();
+    expect(screen.getByText(/75.0%/i)).toBeInTheDocument();
+    expect(screen.getByText("Recent Queries")).toBeInTheDocument();
+    expect(screen.getByText(/When is the thesis submission deadline\?/i)).toBeInTheDocument();
+  });
+
+  it("shows empty usage state when there are no records", async () => {
+    getUsageLogsMock.mockResolvedValueOnce({ entries: [], count: 0, limit: 50 });
+
+    render(<AdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Recent Queries")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/No usage records yet/i)).toBeInTheDocument();
   });
 });
