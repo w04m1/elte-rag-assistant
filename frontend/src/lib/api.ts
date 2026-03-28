@@ -77,11 +77,15 @@ export async function deleteDocument(fileName: string): Promise<{ status: string
   );
 }
 
-export async function triggerJob(job: "scrape" | "reindex"): Promise<JobStatusResponse> {
+export async function triggerJob(
+  job: "documents/sync" | "reindex",
+): Promise<JobStatusResponse> {
   return apiFetch<JobStatusResponse>(`/admin/${job}`, { method: "POST" });
 }
 
-export async function getJobStatus(job: "scrape" | "reindex"): Promise<JobStatusResponse> {
+export async function getJobStatus(
+  job: "documents/sync" | "reindex",
+): Promise<JobStatusResponse> {
   return apiFetch<JobStatusResponse>(`/admin/${job}`);
 }
 

@@ -38,6 +38,20 @@ function isExternalUrl(source: string): boolean {
   return /^https?:\/\//i.test(source);
 }
 
+function localSourceExtension(source: string): ".pdf" | ".doc" | ".docx" | null {
+  const lowerSource = source.toLowerCase();
+  if (lowerSource.endsWith(".pdf")) {
+    return ".pdf";
+  }
+  if (lowerSource.endsWith(".docx")) {
+    return ".docx";
+  }
+  if (lowerSource.endsWith(".doc")) {
+    return ".doc";
+  }
+  return null;
+}
+
 function buildCitationSourceUrl(citation: CitedSourceItem): string | null {
   const source = citation.source?.trim();
   if (!source) {
@@ -54,8 +68,10 @@ function buildCitationSourceUrl(citation: CitedSourceItem): string | null {
     return source;
   }
 
-  if (source.toLowerCase().endsWith(".pdf")) {
-    return `${API_BASE_URL}/files/${encodeURIComponent(source)}${pageFragment}`;
+  const extension = localSourceExtension(source);
+  if (extension) {
+    const pageSuffix = extension === ".pdf" ? pageFragment : "";
+    return `${API_BASE_URL}/files/${encodeURIComponent(source)}${pageSuffix}`;
   }
 
   if (sourceType === "news" && source.startsWith("/")) {

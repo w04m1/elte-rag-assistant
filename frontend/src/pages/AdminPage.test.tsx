@@ -91,7 +91,7 @@ describe("AdminPage", () => {
     });
   });
 
-  it("keeps scrape and reindex as separate triggers", async () => {
+  it("keeps document sync and reindex as separate triggers", async () => {
     render(<AdminPage />);
 
     await waitFor(() => {
@@ -99,10 +99,10 @@ describe("AdminPage", () => {
     });
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /start scrape/i }));
+    await user.click(screen.getByRole("button", { name: /start documents sync/i }));
     await user.click(screen.getByRole("button", { name: /start reindex/i }));
 
-    expect(triggerJobMock).toHaveBeenCalledWith("scrape");
+    expect(triggerJobMock).toHaveBeenCalledWith("documents/sync");
     expect(triggerJobMock).toHaveBeenCalledWith("reindex");
   });
 

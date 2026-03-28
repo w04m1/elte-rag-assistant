@@ -99,6 +99,39 @@ describe("ChatPage", () => {
     expect(screen.getByText(/^News/i)).toBeInTheDocument();
   });
 
+  it("renders local DOCX citations through backend file endpoint", async () => {
+    askQuestionMock.mockResolvedValue({
+      answer: "Please fill the form. [C1]",
+      sources: [],
+      model_used: "demo-model",
+      reasoning: "",
+      confidence: "medium",
+      cited_sources: [
+        {
+          citation_id: "C1",
+          source: "credittransfer_2024-25-2.docx",
+          document: "Credit Transfer Form",
+          page: null,
+          relevant_snippet: "Use the latest DOCX form for submission.",
+          source_type: "pdf",
+        },
+      ],
+    });
+
+    const user = userEvent.setup();
+    render(<ChatPage />);
+
+    await user.type(screen.getByLabelText("Question"), "Where is the credit transfer form?");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/please fill the form/i)).toBeInTheDocument();
+    });
+
+    const sourceLink = screen.getByRole("link", { name: /open source/i });
+    expect(sourceLink).toHaveAttribute("href", "/api/files/credittransfer_2024-25-2.docx");
+  });
+
   it("persists current chat and clears it with New chat", async () => {
     askQuestionMock.mockResolvedValue({
       answer: "Saved answer",

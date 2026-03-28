@@ -56,7 +56,9 @@ export function AdminPage() {
   const [documents, setDocuments] = useState<DocumentListItem[]>([]);
   const [file, setFile] = useState<File | null>(null);
 
-  const [scrapeStatus, setScrapeStatus] = useState<JobStatusResponse>({ status: "idle" });
+  const [documentsSyncStatus, setDocumentsSyncStatus] = useState<JobStatusResponse>({
+    status: "idle",
+  });
   const [reindexStatus, setReindexStatus] = useState<JobStatusResponse>({ status: "idle" });
   const [newsStatus, setNewsStatus] = useState<NewsJobStatusResponse>({ status: "idle" });
 
@@ -67,10 +69,10 @@ export function AdminPage() {
 
   const isPolling = useMemo(
     () =>
-      [scrapeStatus, reindexStatus, newsStatus].some((status) =>
+      [documentsSyncStatus, reindexStatus, newsStatus].some((status) =>
         ["queued", "running"].includes(status.status),
       ),
-    [scrapeStatus, reindexStatus, newsStatus],
+    [documentsSyncStatus, reindexStatus, newsStatus],
   );
 
   const loadSettings = async () => {
@@ -89,12 +91,12 @@ export function AdminPage() {
   };
 
   const loadStatuses = async () => {
-    const [nextScrapeStatus, nextReindexStatus, nextNewsStatus] = await Promise.all([
-      getJobStatus("scrape"),
+    const [nextDocumentsSyncStatus, nextReindexStatus, nextNewsStatus] = await Promise.all([
+      getJobStatus("documents/sync"),
       getJobStatus("reindex"),
       getNewsJobStatus(),
     ]);
-    setScrapeStatus(nextScrapeStatus);
+    setDocumentsSyncStatus(nextDocumentsSyncStatus);
     setReindexStatus(nextReindexStatus);
     setNewsStatus(nextNewsStatus);
   };
@@ -189,12 +191,12 @@ export function AdminPage() {
     }
   };
 
-  const onTriggerJob = async (job: "scrape" | "reindex") => {
+  const onTriggerJob = async (job: "documents/sync" | "reindex") => {
     setError(null);
     try {
       const status = await triggerJob(job);
-      if (job === "scrape") {
-        setScrapeStatus(status);
+      if (job === "documents/sync") {
+        setDocumentsSyncStatus(status);
       } else {
         setReindexStatus(status);
       }
@@ -222,9 +224,12 @@ export function AdminPage() {
 
   const renderJobStatus = (status: JobStatusResponse) => {
     const result = (status.result || {}) as Record<string, unknown>;
-    const discovered = result.discovered_count as number | undefined;
+    const discovered = result.discovered_url_count as number | undefined;
     const downloaded = result.downloaded_count as number | undefined;
-    const newsSaved = result.news_saved_count as number | undefined;
+    const downloadedPdf = result.downloaded_pdf_count as number | undefined;
+    const downloadedDoc = result.downloaded_doc_count as number | undefined;
+    const downloadedDocx = result.downloaded_docx_count as number | undefined;
+    const skipped = result.skipped_count as number | undefined;
 
     return (
       <div className="space-y-1 text-sm text-muted-foreground">
@@ -232,9 +237,12 @@ export function AdminPage() {
           Status: <span className="font-medium text-foreground">{status.status}</span>
         </p>
         {typeof status.vector_count === "number" ? <p>Vector count: {status.vector_count}</p> : null}
-        {typeof discovered === "number" ? <p>Discovered links: {discovered}</p> : null}
-        {typeof downloaded === "number" ? <p>Downloaded PDFs: {downloaded}</p> : null}
-        {typeof newsSaved === "number" ? <p>Indexed news articles: {newsSaved}</p> : null}
+        {typeof discovered === "number" ? <p>Discovered URLs: {discovered}</p> : null}
+        {typeof downloaded === "number" ? <p>Downloaded files: {downloaded}</p> : null}
+        {typeof downloadedPdf === "number" ? <p>Downloaded PDF: {downloadedPdf}</p> : null}
+        {typeof downloadedDoc === "number" ? <p>Downloaded DOC: {downloadedDoc}</p> : null}
+        {typeof downloadedDocx === "number" ? <p>Downloaded DOCX: {downloadedDocx}</p> : null}
+        {typeof skipped === "number" ? <p>Skipped existing: {skipped}</p> : null}
         {status.error ? <p className="text-red-700">Error: {status.error}</p> : null}
       </div>
     );
@@ -401,7 +409,7 @@ export function AdminPage() {
                           variant={canDelete ? "danger" : "ghost"}
                           disabled={!canDelete}
                           onClick={() => void onDeleteDocument(document.source)}
-                          title={canDelete ? "Delete source PDF" : "Managed via scraper"}
+                          title={canDelete ? "Delete source PDF" : "Managed via document sync"}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -418,10 +426,12 @@ export function AdminPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2">
-            <CardTitle>Scrape ELTE IK</CardTitle>
-            <Button onClick={() => void onTriggerJob("scrape")}>Start scrape</Button>
+            <CardTitle>Documents Sync</CardTitle>
+            <Button onClick={() => void onTriggerJob("documents/sync")}>
+              Start documents sync
+            </Button>
           </CardHeader>
-          <CardContent>{renderJobStatus(scrapeStatus)}</CardContent>
+          <CardContent>{renderJobStatus(documentsSyncStatus)}</CardContent>
         </Card>
 
         <Card>
