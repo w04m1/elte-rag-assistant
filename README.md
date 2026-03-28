@@ -40,3 +40,23 @@ Documents sync and reindex are intentionally separate operations.
 
 ## Citation Note
 Page-level citations depend on chunk metadata captured during ingestion. After ingestion logic changes, run a full reindex to refresh stored metadata.
+
+## Usage Analytics
+- Runtime query usage is logged to `data/runtime/usage_log.jsonl` (one JSON line per `/ask` call).
+- Each `/ask` response includes `request_id`, which can be used to attach user feedback.
+- Feedback endpoint:
+  - `POST /feedback` with `{ "request_id": "...", "helpful": true|false }`
+- Admin endpoints:
+  - `GET /admin/usage?limit=200`
+  - `GET /admin/usage/stats?window_days=7`
+
+## Evaluation Command
+Run the fixed-question evaluation against a live backend:
+
+```bash
+uv run python scripts/run_evaluation.py --api-base-url http://127.0.0.1:8001
+```
+
+Artifacts:
+- `data/eval/latest_metrics.json`
+- `docs/thesis/evaluation.md`
