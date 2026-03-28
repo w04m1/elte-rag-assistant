@@ -17,12 +17,12 @@ from langchain_community.vectorstores import FAISS
 from pydantic import BaseModel, Field
 
 from app.config import settings
+from app.document_sync import run_documents_sync
 from app.embeddings import get_embeddings
 from app.ingest import create_vector_db
 from app.news_ingest import run_news_pipeline
 from app.rag_chain import ask as rag_ask
 from app.runtime_settings import RuntimeSettings, RuntimeSettingsStore
-from app.scraper import run_targeted_scrape
 
 logging.basicConfig(
     level=logging.INFO,
@@ -114,23 +114,22 @@ def _run_reindex_job() -> None:
         _set_job_status("reindex_status", status="failed", error=str(exc))
 
 
-def _run_scrape_job() -> None:
-    _set_job_status("scrape_status", status="running", error=None)
+def _run_documents_sync_job() -> None:
+    _set_job_status("documents_sync_status", status="running", error=None, result=None)
     try:
-        result = run_targeted_scrape(
-            download_dir=settings.scrape_download_path,
-            manifest_path=settings.scrape_manifest_path,
-            news_output_dir=settings.scrape_news_path,
+        result = run_documents_sync(
+            download_dir=settings.raw_data_path,
+            state_path=settings.documents_sync_state_path,
         )
         _set_job_status(
-            "scrape_status",
+            "documents_sync_status",
             status="completed",
             error=None,
             result=result,
         )
     except Exception as exc:
-        logger.exception("Scrape failed")
-        _set_job_status("scrape_status", status="failed", error=str(exc))
+        logger.exception("Documents sync failed")
+        _set_job_status("documents_sync_status", status="failed", error=str(exc))
 
 
 def _run_news_job(mode: Literal["bootstrap", "sync"]) -> None:
@@ -194,7 +193,7 @@ async def lifespan(app: FastAPI):
         "error": None,
         "vector_count": 0,
     }
-    resources["scrape_status"] = {
+    resources["documents_sync_status"] = {
         "status": "idle",
         "error": None,
         "result": None,
@@ -334,10 +333,20 @@ def _collect_documents(db: FAISS) -> list[DocumentListItem]:
     return sorted(grouped.values(), key=lambda item: item.title.lower())
 
 
-def _safe_destination(filename: str) -> Path:
+def _safe_upload_destination(filename: str) -> Path:
     safe_name = Path(filename).name
     if not safe_name.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF uploads are supported.")
+    target_dir = Path(settings.raw_data_path)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    return target_dir / safe_name
+
+
+def _safe_source_destination(filename: str) -> Path:
+    safe_name = Path(filename).name
+    suffix = Path(safe_name).suffix.lower()
+    if suffix not in {".pdf", ".doc", ".docx"}:
+        raise HTTPException(status_code=400, detail="Unsupported source file type.")
     target_dir = Path(settings.raw_data_path)
     target_dir.mkdir(parents=True, exist_ok=True)
     return target_dir / safe_name
@@ -407,7 +416,7 @@ async def list_admin_documents():
 
 @app.post("/admin/documents/upload")
 async def upload_document(file: UploadFile = File(...)):
-    destination = _safe_destination(file.filename or "document.pdf")
+    destination = _safe_upload_destination(file.filename or "document.pdf")
     with destination.open("wb") as output_file:
         shutil.copyfileobj(file.file, output_file)
     return {"status": "uploaded", "file_name": destination.name}
@@ -415,7 +424,7 @@ async def upload_document(file: UploadFile = File(...)):
 
 @app.delete("/admin/documents/{file_name}")
 async def delete_document(file_name: str):
-    destination = _safe_destination(file_name)
+    destination = _safe_upload_destination(file_name)
     if not destination.exists():
         raise HTTPException(status_code=404, detail="Document not found.")
     destination.unlink()
@@ -424,12 +433,18 @@ async def delete_document(file_name: str):
 
 @app.get("/files/{file_name}")
 async def get_source_file(file_name: str):
-    destination = _safe_destination(file_name)
+    destination = _safe_source_destination(file_name)
     if not destination.exists():
         raise HTTPException(status_code=404, detail="Document not found.")
+    media_type_by_ext = {
+        ".pdf": "application/pdf",
+        ".doc": "application/msword",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+    media_type = media_type_by_ext.get(destination.suffix.lower(), "application/octet-stream")
     return FileResponse(
         destination,
-        media_type="application/pdf",
+        media_type=media_type,
         filename=destination.name,
         content_disposition_type="inline",
     )
@@ -450,19 +465,21 @@ async def get_reindex_status():
     return JobStatusResponse(**resources.get("reindex_status", {"status": "idle"}))
 
 
-@app.post("/admin/scrape", response_model=JobStatusResponse)
-async def trigger_scrape(background_tasks: BackgroundTasks):
-    status = resources.get("scrape_status", {})
+@app.post("/admin/documents/sync", response_model=JobStatusResponse)
+async def trigger_documents_sync(background_tasks: BackgroundTasks):
+    status = resources.get("documents_sync_status", {})
     if status.get("status") == "running":
         return JobStatusResponse(**status)
-    _set_job_status("scrape_status", status="queued", error=None, result=None)
-    background_tasks.add_task(_run_scrape_job)
-    return JobStatusResponse(**resources["scrape_status"])
+    _set_job_status("documents_sync_status", status="queued", error=None, result=None)
+    background_tasks.add_task(_run_documents_sync_job)
+    return JobStatusResponse(**resources["documents_sync_status"])
 
 
-@app.get("/admin/scrape", response_model=JobStatusResponse)
-async def get_scrape_status():
-    return JobStatusResponse(**resources.get("scrape_status", {"status": "idle"}))
+@app.get("/admin/documents/sync", response_model=JobStatusResponse)
+async def get_documents_sync_status():
+    return JobStatusResponse(
+        **resources.get("documents_sync_status", {"status": "idle"})
+    )
 
 
 @app.post("/admin/news/bootstrap", response_model=NewsJobStatusResponse)

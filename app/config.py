@@ -22,8 +22,17 @@ class Settings(BaseSettings):
     # FAISS vector store path
     faiss_index_path: str = "data/vector_store"
     runtime_settings_path: str = "data/runtime/settings.json"
+    documents_sync_state_path: str = "data/runtime/documents_sync_state.json"
+    documents_typesense_url: str = "https://typesense.elte.hu/multi_search"
+    documents_typesense_api_key: str = ""
+    documents_sync_per_page: int = 250
+    documents_request_timeout_seconds: float = 30.0
+
+    # Legacy scraper settings (unused, kept for env compatibility)
     scrape_manifest_path: str = "data/runtime/scrape_manifest.json"
     scrape_news_path: str = "data/scraped_news"
+
+    # News sync settings
     news_typesense_url: str = "https://typesense.elte.hu/multi_search"
     news_typesense_api_key: str = ""
     news_records_path: str = "data/news/items"

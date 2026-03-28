@@ -102,6 +102,12 @@ def _load_news_documents(news_dir: str | Path | None = None) -> list[Document]:
     return documents
 
 
+def _list_ingestion_inputs(source_dir: str | Path) -> list[Path]:
+    root = Path(source_dir)
+    paths = list(root.glob("*.pdf")) + list(root.glob("*.docx"))
+    return sorted(paths, key=lambda path: path.name.lower())
+
+
 def create_vector_db(
     source_dir: str | None = None,
     output_dir: str | None = None,
@@ -109,16 +115,16 @@ def create_vector_db(
     source_dir = source_dir or settings.raw_data_path
     output_dir = output_dir or settings.faiss_index_path
 
-    pdf_paths = sorted(Path(source_dir).glob("*.pdf"))
-    if not pdf_paths:
-        logger.warning("No PDF ingestion inputs found in %s", source_dir)
+    source_paths = _list_ingestion_inputs(source_dir)
+    if not source_paths:
+        logger.warning("No supported ingestion inputs (.pdf/.docx) found in %s", source_dir)
         return
 
-    logger.info("Found %d PDF files in %s", len(pdf_paths), source_dir)
+    logger.info("Found %d supported files (.pdf/.docx) in %s", len(source_paths), source_dir)
 
     documents: list[Document] = []
 
-    if pdf_paths:
+    if source_paths:
         pipeline_options = PdfPipelineOptions()
         pipeline_options.do_ocr = False
         pipeline_options.do_table_structure = True
@@ -137,17 +143,17 @@ def create_vector_db(
             merge_peers=True,
         )
 
-        for pdf_path in pdf_paths:
-            logger.info("Converting %s...", pdf_path.name)
-            result = converter.convert(str(pdf_path))
-            title = _title_from_filename(pdf_path.name)
+        for source_path in source_paths:
+            logger.info("Converting %s...", source_path.name)
+            result = converter.convert(str(source_path))
+            title = _title_from_filename(source_path.name)
 
             chunks = list(chunker.chunk(result.document))
             for chunk in chunks:
                 text = chunker.contextualize(chunk)
 
                 meta: dict[str, Any] = {
-                    "source": pdf_path.name,
+                    "source": source_path.name,
                     "title": title,
                 }
                 if hasattr(chunk.meta, "headings") and chunk.meta.headings:
@@ -162,7 +168,7 @@ def create_vector_db(
             logger.info(
                 "  → %d chunks from %s (%d pages)",
                 len(chunks),
-                pdf_path.name,
+                source_path.name,
                 len(result.document.pages),
             )
 
@@ -181,11 +187,13 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
-    parser = argparse.ArgumentParser(description="Ingest PDFs into FAISS vector store")
+    parser = argparse.ArgumentParser(
+        description="Ingest PDF/DOCX documents into FAISS vector store"
+    )
     parser.add_argument(
         "--source",
         default=None,
-        help="Source directory with PDFs (default: from config)",
+        help="Source directory with .pdf/.docx files (default: from config)",
     )
     parser.add_argument(
         "--output",
