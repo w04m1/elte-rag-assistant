@@ -34,7 +34,7 @@
       "published_at": "2026-02-19T10:57:41+00:00",
       "file_name": "e9804aafa31ef89f.json",
       "content_hash": "355626cc95416c3b973fee8fd1ba1370e7af3081ec82f70914cb4d288d96fbc0",
-      "updated_at": "2026-03-22T18:20:03.823642+00:00"
+      "updated_at": "2026-03-28T10:44:06.088481+00:00"
     },
     "entity:node-292006:en": {
       "id": "entity:node-292006:en",
@@ -43,7 +43,7 @@
       "published_at": "2026-02-23T11:02:52+00:00",
       "file_name": "b5ac15ea46229b0e.json",
       "content_hash": "370da9321816d2b2dc5acdc9e8afcfeabdfef694a4cc93a227e86b28797e2f3b",
-      "updated_at": "2026-03-22T18:20:03.823642+00:00"
+      "updated_at": "2026-03-28T10:44:06.088481+00:00"
     },
     "entity:node-292527:en": {
       "id": "entity:node-292527:en",
@@ -52,7 +52,7 @@
       "published_at": "2026-02-25T12:20:12+00:00",
       "file_name": "e16f823eb016b698.json",
       "content_hash": "3d3a5415201fdcd9b8ad229617c669f70e803881f564ea64c6e56f8f2e73142e",
-      "updated_at": "2026-03-22T18:20:03.823642+00:00"
+      "updated_at": "2026-03-28T10:44:06.088481+00:00"
     },
     "entity:node-326060:en": {
       "id": "entity:node-326060:en",
@@ -61,8 +61,44 @@
       "published_at": "2026-03-09T14:25:37+00:00",
       "file_name": "ebd7ff412e7d674d.json",
       "content_hash": "50d96a4547f45d7feaf0558b0bf71858aceda34fd11acee999cd0284de279b2a",
-      "updated_at": "2026-03-22T18:20:03.823642+00:00"
+      "updated_at": "2026-03-28T10:44:06.088481+00:00"
+    },
+    "entity:node-327174:en": {
+      "id": "entity:node-327174:en",
+      "url": "https://elte.hu/en/qs-in-nine-fields-elte-is-the-best-hungarian-university",
+      "title": "QS: In nine fields, ELTE is the best Hungarian university",
+      "published_at": "2026-03-25T09:39:06+00:00",
+      "file_name": "3d4fb1b769332c79.json",
+      "content_hash": "21f593f854e0487f83d39eb8dace19c07964e2d3374258d7462d700b388866c7",
+      "updated_at": "2026-03-28T10:44:06.088481+00:00"
+    },
+    "entity:node-327178:en": {
+      "id": "entity:node-327178:en",
+      "url": "https://inf.elte.hu/en/tdk-conference-it-science-section-2026-spring",
+      "title": "TDK Conference \u2013 IT Science Section, 2026 Spring",
+      "published_at": "2026-03-25T13:31:08+00:00",
+      "file_name": "b57c8509fa2f6f39.json",
+      "content_hash": "fd4c97b15c7e2810b98026bb56441a38d7584eaad4a9e811cd80703e3612961b",
+      "updated_at": "2026-03-28T10:44:06.088481+00:00"
+    },
+    "entity:node-327188:en": {
+      "id": "entity:node-327188:en",
+      "url": "https://inf.elte.hu/en/application-to-the-innovation-lab-2026",
+      "title": "Application to the Innovation Lab 2026",
+      "published_at": "2026-03-25T15:27:46+00:00",
+      "file_name": "c3229c450e80885f.json",
+      "content_hash": "94ed488cbe6a1cf7414b205e0aa368c64b7f8a9cde91baa7285e904480ee4a57",
+      "updated_at": "2026-03-28T10:44:06.088481+00:00"
+    },
+    "entity:node-327276:en": {
+      "id": "entity:node-327276:en",
+      "url": "https://inf.elte.hu/en/join-our-international-alumni-community-and-share-your-story",
+      "title": "Join Our International Alumni Community and Share Your Story",
+      "published_at": "2026-03-26T12:33:14+00:00",
+      "file_name": "abcef8370762af66.json",
+      "content_hash": "610b774be7c438d4defbf42b1c9dcfcfa3acab4fcb5fcbbd8ced510fcde2f149",
+      "updated_at": "2026-03-28T10:44:06.088481+00:00"
     }
   },
-  "last_sync_at": "2026-03-22T18:20:03.823642+00:00"
+  "last_sync_at": "2026-03-28T10:44:06.088481+00:00"
 }
