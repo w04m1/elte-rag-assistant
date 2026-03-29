@@ -1,0 +1,14 @@
+{
+  "snapshot_id": "0541bf3ade51289f__openai_large__standard__reuse_index_chunks_v1",
+  "built_at_utc": "2026-03-29T13:02:30.648089+00:00",
+  "corpus_hash": "0541bf3ade51289f",
+  "embedding_profile": "openai_large",
+  "embedding_provider": "openrouter",
+  "embedding_model": "openai/text-embedding-3-large",
+  "chunk_profile": "standard",
+  "parser_profile": "reuse_index_chunks_v1",
+  "max_tokens": 256,
+  "source_count": 24,
+  "chunk_count": 4822,
+  "output_dir": "data/indexes/0541bf3ade51289f__openai_large__standard__reuse_index_chunks_v1"
+}

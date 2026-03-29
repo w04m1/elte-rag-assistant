@@ -1,0 +1,14 @@
+{
+  "snapshot_id": "0541bf3ade51289f__local_mpnet__standard__reuse_index_chunks_v1",
+  "built_at_utc": "2026-03-29T13:46:27.506412+00:00",
+  "corpus_hash": "0541bf3ade51289f",
+  "embedding_profile": "local_mpnet",
+  "embedding_provider": "local",
+  "embedding_model": "all-mpnet-base-v2",
+  "chunk_profile": "standard",
+  "parser_profile": "reuse_index_chunks_v1",
+  "max_tokens": 256,
+  "source_count": 24,
+  "chunk_count": 4822,
+  "output_dir": "data/indexes/0541bf3ade51289f__local_mpnet__standard__reuse_index_chunks_v1"
+}

@@ -1,0 +1,14 @@
+{
+  "snapshot_id": "0541bf3ade51289f__local_minilm__standard__docling_v1",
+  "built_at_utc": "2026-03-29T16:43:12.835069+00:00",
+  "corpus_hash": "0541bf3ade51289f",
+  "embedding_profile": "local_minilm",
+  "embedding_provider": "local",
+  "embedding_model": "all-MiniLM-L6-v2",
+  "chunk_profile": "standard",
+  "parser_profile": "docling_v1",
+  "max_tokens": 256,
+  "source_count": 233,
+  "chunk_count": 10100,
+  "output_dir": "data/indexes/0541bf3ade51289f__local_minilm__standard__docling_v1"
+}
