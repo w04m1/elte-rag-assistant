@@ -111,7 +111,7 @@ describe("AdminPage", () => {
     });
 
     const user = userEvent.setup();
-    const promptInput = screen.getByLabelText("System prompt");
+    const promptInput = screen.getByLabelText("Additional instructions (optional)");
     await user.clear(promptInput);
     await user.type(promptInput, "Updated prompt");
     await user.click(screen.getByRole("button", { name: /save settings/i }));

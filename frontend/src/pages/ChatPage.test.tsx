@@ -198,4 +198,73 @@ describe("ChatPage", () => {
       expect(submitFeedbackMock).toHaveBeenCalledWith("req-123", true);
     });
   });
+
+  it("sends previous chat turns with follow-up questions", async () => {
+    askQuestionMock
+      .mockResolvedValueOnce({
+        answer: "The deadline is April 15th.",
+        sources: [],
+        model_used: "demo-model",
+        reasoning: "",
+        confidence: "high",
+        cited_sources: [
+          {
+            citation_id: "C1",
+            source: "thesis_rules.pdf",
+            document: "Thesis Rules",
+            page: 3,
+            relevant_snippet: "Students must submit by April 15th.",
+            source_type: "pdf",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        answer: "Late submissions require prior approval.",
+        sources: [],
+        model_used: "demo-model",
+        reasoning: "",
+        confidence: "medium",
+        cited_sources: [],
+      });
+
+    const user = userEvent.setup();
+    render(<ChatPage />);
+
+    await user.type(screen.getByLabelText("Question"), "When is the thesis deadline?");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("The deadline is April 15th.")).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText("Question"), "What about late submissions?");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/prior approval/i)).toBeInTheDocument();
+    });
+
+    expect(askQuestionMock).toHaveBeenNthCalledWith(1, "When is the thesis deadline?", []);
+    expect(askQuestionMock).toHaveBeenNthCalledWith(
+      2,
+      "What about late submissions?",
+      [
+        { role: "user", text: "When is the thesis deadline?" },
+        {
+          role: "assistant",
+          text: "The deadline is April 15th.",
+          cited_sources: [
+            {
+              citation_id: "C1",
+              source: "thesis_rules.pdf",
+              document: "Thesis Rules",
+              page: 3,
+              relevant_snippet: "Students must submit by April 15th.",
+              source_type: "pdf",
+            },
+          ],
+        },
+      ],
+    );
+  });
 });

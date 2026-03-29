@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.rag_chain import RAGResult
-from app.runtime_settings import RuntimeSettingsStore
+from app.runtime_settings import LOCKED_SYSTEM_PROMPT, RuntimeSettingsStore, compose_system_prompt
 
 
 @pytest.fixture()
@@ -157,7 +157,7 @@ class TestAskEndpoint:
         )
         with patch(
             "app.main.rag_ask", new_callable=AsyncMock, return_value=mock_result
-        ):
+        ) as rag_ask_mock:
             resp = client.post("/ask", json={"query": "When is the thesis deadline?"})
             assert resp.status_code == 200
             data = resp.json()
@@ -186,6 +186,75 @@ class TestAskEndpoint:
             assert entry["cited_sources_count"] == 1
             assert entry["source_types"]["pdf"] == 1
             assert entry["source_types"]["news"] == 0
+
+            used_prompt = rag_ask_mock.call_args.kwargs["system_prompt"]
+            assert used_prompt == LOCKED_SYSTEM_PROMPT
+
+    def test_ask_forwards_chat_history(self, client):
+        mock_result = RAGResult(
+            answer="Based on your previous question, the deadline is April 15th.",
+            sources=[],
+            model_used="mock-model",
+            reasoning="history-aware",
+            confidence="high",
+            cited_sources=[],
+        )
+        payload = {
+            "query": "What about late submissions?",
+            "history": [
+                {"role": "user", "text": "When is the thesis deadline?"},
+                {
+                    "role": "assistant",
+                    "text": "The deadline is April 15th. [C1]",
+                    "cited_sources": [
+                        {
+                            "citation_id": "C1",
+                            "source": "thesis_rules.pdf",
+                            "document": "Thesis Rules",
+                            "page": 3,
+                            "relevant_snippet": "Students must submit by April 15th.",
+                            "source_type": "pdf",
+                            "published_at": None,
+                        }
+                    ],
+                },
+            ],
+        }
+        with patch(
+            "app.main.rag_ask", new_callable=AsyncMock, return_value=mock_result
+        ) as rag_ask_mock:
+            resp = client.post("/ask", json=payload)
+            assert resp.status_code == 200
+
+        assert rag_ask_mock.call_args.kwargs["chat_history"] == payload["history"]
+
+    def test_ask_uses_locked_prompt_plus_editable_additions(self, client):
+        mock_result = RAGResult(
+            answer="Answer text",
+            sources=[],
+            model_used="mock-model",
+            reasoning="reason",
+            confidence="high",
+            cited_sources=[],
+        )
+        additional_instructions = "Keep answers brief and use bullet points when possible."
+
+        update_resp = client.put(
+            "/admin/settings",
+            json={"system_prompt": additional_instructions},
+        )
+        assert update_resp.status_code == 200
+        assert update_resp.json()["system_prompt"] == additional_instructions
+
+        with patch(
+            "app.main.rag_ask", new_callable=AsyncMock, return_value=mock_result
+        ) as rag_ask_mock:
+            resp = client.post("/ask", json={"query": "How can I submit my thesis?"})
+            assert resp.status_code == 200
+
+        used_prompt = rag_ask_mock.call_args.kwargs["system_prompt"]
+        assert used_prompt == compose_system_prompt(additional_instructions)
+        assert LOCKED_SYSTEM_PROMPT in used_prompt
 
     def test_ask_no_db(self, client_no_db):
         resp = client_no_db.post("/ask", json={"query": "test"})

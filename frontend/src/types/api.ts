@@ -26,6 +26,12 @@ export interface AskResponse {
   cited_sources: CitedSourceItem[];
 }
 
+export interface ChatHistoryTurn {
+  role: ChatRole;
+  text: string;
+  cited_sources?: CitedSourceItem[];
+}
+
 export interface RuntimeSettings {
   generator_model: string;
   reranker_model: string;

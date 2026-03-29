@@ -24,7 +24,11 @@ from app.embeddings import get_embeddings
 from app.ingest import create_vector_db
 from app.news_ingest import run_news_pipeline
 from app.rag_chain import ask as rag_ask
-from app.runtime_settings import RuntimeSettings, RuntimeSettingsStore
+from app.runtime_settings import (
+    RuntimeSettings,
+    RuntimeSettingsStore,
+    compose_system_prompt,
+)
 from app.usage_log import (
     append_usage_entry,
     compute_usage_stats,
@@ -246,8 +250,25 @@ app.add_middleware(
 )
 
 
+class ChatHistoryCitedSource(BaseModel):
+    citation_id: str
+    source: str
+    document: str
+    page: int | None = None
+    relevant_snippet: str
+    source_type: Literal["pdf", "news"] = "pdf"
+    published_at: str | None = None
+
+
+class ChatHistoryTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    text: str
+    cited_sources: list[ChatHistoryCitedSource] | None = None
+
+
 class QueryRequest(BaseModel):
     query: str
+    history: list[ChatHistoryTurn] = Field(default_factory=list)
 
 
 class SourceItem(BaseModel):
@@ -437,16 +458,26 @@ async def ask_endpoint(request: QueryRequest):
     started_at = perf_counter()
     request_id = uuid4().hex
     runtime_settings = _get_runtime_settings_store().get()
+    chat_history_payload: list[dict] = []
+    for turn in request.history:
+        payload_turn: dict = {"role": turn.role, "text": turn.text}
+        if turn.role == "assistant" and turn.cited_sources:
+            payload_turn["cited_sources"] = [
+                cited_source.model_dump() for cited_source in turn.cited_sources
+            ]
+        chat_history_payload.append(payload_turn)
+
     try:
         db = _require_db()
         bm25 = resources.get("bm25_retriever")
         news_db = resources.get("news_db")
         result = await rag_ask(
             query=request.query,
+            chat_history=chat_history_payload,
             db=db,
             bm25_retriever=bm25,
             news_db=news_db,
-            system_prompt=runtime_settings.system_prompt,
+            system_prompt=compose_system_prompt(runtime_settings.system_prompt),
             generator_model=runtime_settings.generator_model,
             reranker_model=runtime_settings.reranker_model,
         )

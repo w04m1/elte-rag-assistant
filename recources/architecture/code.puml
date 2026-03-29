@@ -6,74 +6,125 @@ skinparam classBorderColor #333333
 skinparam stereotypeCBackgroundColor #D3D3D3
 
 package "Preprocessing Pipeline (Batch)" #E8F4F8 {
-    [PDF Documents] as docs
+    [Policy Documents\n(.pdf/.doc/.docx)] as docs
     [Docling DocumentConverter\n(PyPdfium2 backend)] as ingest
     [HybridChunker\n(Docling, token-aware)] as chunk
     [Embedding Model\n(all-mpnet-base-v2)] as embed_model
-    [Vector Store (FAISS)] as vector_db
+    [Document Vector Store (FAISS)] as doc_vector_db
+
+    [ELTE IK News Feed] as news_feed
+    [News Normalizer\n(JSON records)] as news_norm
+    [News Vector Store (FAISS)] as news_vector_db
 
     docs --> ingest: extract text & tables
     ingest --> chunk: split into chunks\n(max_tokens=256, merge_peers)
     chunk --> embed_model: vectorize chunks
-    embed_model --> vector_db: store embeddings
+    embed_model --> doc_vector_db: store document embeddings
+
+    news_feed --> news_norm: fetch + normalize
+    news_norm --> embed_model: vectorize news chunks
+    embed_model --> news_vector_db: store news embeddings
 }
 
 package "Runtime Pipeline (Query-Response)" #F8E8F4 {
     [Student User] as user
-    [React Frontend] as frontend <<planned M3>>
+    [React Frontend] as frontend
     [FastAPI Backend] as backend
+    [Follow-Up Detector\n(short/referential + history)] as followup
+    [Query Rewriter\n(conditional, last 6 turns)] as rewriter
+    [Effective Retrieval Query] as retrieval_q
     [Query Embedding\n(all-mpnet-base-v2)] as query_embed
 
-    package "Hybrid Retrieval" #F0E0F0 {
+    package "Candidate Retrieval" #F0E0F0 {
         [FAISS Retriever\n(MMR search)] as faiss_ret
         [BM25 Retriever\n(keyword search)] as bm25_ret
-        [Reciprocal Rank\nFusion (RRF)] as rrf
+        [Document Fusion\n(RRF)] as rrf_docs
+        [News FAISS Retriever\n(MMR search)] as news_ret
     }
 
+    [Carry-Over Injector\n(latest assistant cited sources,\nmax 2)] as carry_over
+    [Candidate Merge + Dedup\n(source + page + snippet)] as merge_dedup
     [LLM Reranker\n(Gemini Flash)] as reranker
     [LLM Generator\n(Gemini Flash / Llama 3.1)\nvia OpenRouter or Ollama] as llm
     [Structured Output\n(answer, reasoning,\nconfidence, citations)] as response
 
     user --> frontend: asks question
-    frontend --> backend: send query
-    backend --> query_embed: embed query
+    frontend --> backend: send query + history\n+ optional assistant cited_sources
+
+    backend --> followup: evaluate follow-up likelihood
+    followup --> rewriter: likely follow-up
+    followup --> retrieval_q: standalone query not needed
+    rewriter --> retrieval_q: rewritten standalone query
+
+    retrieval_q --> query_embed: embed retrieval query
     query_embed --> faiss_ret: similarity search (MMR)
-    query_embed --> bm25_ret: keyword search
-    faiss_ret --> rrf: ranked results
-    bm25_ret --> rrf: ranked results
-    rrf --> reranker: top candidates
-    reranker --> llm: reranked context\n+ query
+    retrieval_q --> bm25_ret: keyword search
+    query_embed --> news_ret: similarity search (MMR)
+
+    faiss_ret --> rrf_docs: ranked candidates
+    bm25_ret --> rrf_docs: ranked candidates
+
+    backend --> carry_over: extract latest assistant citations
+    carry_over --> merge_dedup: inject carry-over docs
+    rrf_docs --> merge_dedup: document candidates
+    news_ret --> merge_dedup: news candidates
+
+    merge_dedup --> reranker: merged candidate pool
+    reranker --> llm: reranked context\n+ original query + chat history
     llm --> response: structured JSON
     response --> backend: RAGResult
     backend --> frontend: JSON response
-    frontend --> user: display answer
+    frontend --> user: display answer + sources
 }
 
-package "Admin & Management" <<planned M3/M4>> #F4F8E8 {
+package "Admin & Management" #F4F8E8 {
     [Admin Panel\n(React/FastAPI)] as admin
     [Document Manager] as doc_mgr
-    [Usage Logger] as logger
+    [Runtime Settings Store] as settings_store
+    [Usage Logger\n(JSONL in data/runtime)] as logger
 
-    admin --> doc_mgr: upload new docs
+    admin --> settings_store: update model/prompt settings
+    admin --> doc_mgr: upload/delete docs,\ntrigger sync/reindex
     doc_mgr --> ingest: trigger reindexing
-    backend --> logger: log all queries
+    admin --> logger: view usage overview\nand recent queries
+    backend --> logger: log all /ask requests
+}
+
+package "Evaluation Pipeline" #E8F8E8 {
+    [Question Set\n(data/eval/questions.json)] as eval_questions
+    [Evaluation Runner\n(scripts/run_evaluation.py)] as eval_runner
+    [Metrics Artifacts\n(data/eval/latest_metrics.json\n+ docs/thesis/evaluation.md)] as eval_output
+
+    eval_questions --> eval_runner: fixed QA prompts
+    eval_runner --> backend: POST /ask
+    eval_runner --> eval_output: write metrics and report
 }
 
 package "Prompt Engineering" #FFF8E8 {
     [System Prompt\n(role + rules)] as sys_prompt
     [Few-Shot Examples\n(2 Q&A pairs)] as few_shot
+    [Follow-Up Rewrite Prompt] as rewrite_prompt
     [Structured Output Schema\n(RAGOutput: reasoning,\nanswer, confidence,\ncited_sources)] as schema
 
     sys_prompt --> llm
     few_shot --> llm
     schema --> llm
+    rewrite_prompt --> rewriter
 }
 
-vector_db -.-> faiss_ret: shared index
+doc_vector_db -.-> faiss_ret: shared index
+news_vector_db -.-> news_ret: shared index
 
-note right of vector_db
-    Local FAISS index
-    No external DB dependency
+note right of backend
+    Backend is stateless per request.
+    Chat history is provided by frontend.
+    No full-history vector retrieval.
+end note
+
+note right of merge_dedup
+    Carry-over is lightweight:
+    only most recent assistant turn,
+    maximum 2 cited sources.
 end note
 
 note right of llm

@@ -32,16 +32,11 @@ import type {
 
 const generatorModelPresets = [
   "google/gemini-3-flash-preview",
-  "openai/gpt-4o-mini",
-  "openai/gpt-4.1-mini",
-  "meta-llama/llama-3.1-70b-instruct",
   "custom",
 ];
 
 const rerankerModelPresets = [
   "google/gemini-3-flash-preview",
-  "openai/gpt-4o-mini",
-  "openai/gpt-4.1-mini",
   "custom",
 ];
 
@@ -66,6 +61,28 @@ function trimQuery(query: string, maxLength = 220): string {
     return query;
   }
   return `${query.slice(0, maxLength - 1)}…`;
+}
+
+function feedbackLegend(feedback: boolean | null | undefined): {
+  label: string;
+  className: string;
+} {
+  if (feedback === true) {
+    return {
+      label: "helpful",
+      className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    };
+  }
+  if (feedback === false) {
+    return {
+      label: "not helpful",
+      className: "border-rose-200 bg-rose-50 text-rose-700",
+    };
+  }
+  return {
+    label: "pending",
+    className: "border-slate-200 bg-slate-100 text-slate-700",
+  };
 }
 
 export function AdminPage() {
@@ -362,11 +379,16 @@ export function AdminPage() {
                       <td className="px-3 py-2 align-top">{entry.latency_ms.toFixed(2)} ms</td>
                       <td className="px-3 py-2 align-top">{entry.cited_sources_count}</td>
                       <td className="px-3 py-2 align-top">
-                        {entry.feedback === true
-                          ? "helpful"
-                          : entry.feedback === false
-                            ? "not helpful"
-                            : "pending"}
+                        {(() => {
+                          const legend = feedbackLegend(entry.feedback);
+                          return (
+                            <span
+                              className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${legend.className}`}
+                            >
+                              {legend.label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-3 py-2 align-top">{entry.model_used || "-"}</td>
                     </tr>
@@ -381,9 +403,14 @@ export function AdminPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Models and Prompt</CardTitle>
+            <CardTitle>Models and Prompt Additions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              Core grounding, citation, and safety rules are locked in backend code and cannot
+              be edited from this panel.
+            </p>
+
             <div className="space-y-2">
               <Label htmlFor="generator-preset">Generator model</Label>
               <Select
@@ -429,13 +456,17 @@ export function AdminPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="system-prompt">System prompt</Label>
+              <Label htmlFor="system-prompt">Additional instructions (optional)</Label>
               <Textarea
                 id="system-prompt"
                 rows={8}
+                placeholder="Optional deployment-specific instructions (non-critical)."
                 value={systemPrompt}
                 onChange={(event) => setSystemPrompt(event.target.value)}
               />
+              <p className="text-xs text-muted-foreground">
+                This appends optional instructions after the locked system prompt.
+              </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">

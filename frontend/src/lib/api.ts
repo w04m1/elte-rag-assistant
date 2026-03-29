@@ -1,5 +1,6 @@
 import type {
   AskResponse,
+  ChatHistoryTurn,
   DocumentsResponse,
   FeedbackResponse,
   JobStatusResponse,
@@ -35,11 +36,14 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function askQuestion(query: string): Promise<AskResponse> {
+export async function askQuestion(
+  query: string,
+  history: ChatHistoryTurn[] = [],
+): Promise<AskResponse> {
   return apiFetch<AskResponse>("/ask", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, history }),
   });
 }
 

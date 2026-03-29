@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { API_BASE_URL, askQuestion, submitFeedback } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { CitedSourceItem } from "@/types/api";
+import type { ChatHistoryTurn, CitedSourceItem } from "@/types/api";
 
 type ChatMessage = {
   id: string;
@@ -252,7 +252,20 @@ export function ChatPage() {
     setIsSending(true);
 
     try {
-      const response = await askQuestion(prompt);
+      const historyForRequest: ChatHistoryTurn[] = messages
+        .filter((message) => message.id !== welcomeMessage.id)
+        .map((message) => {
+          const historyTurn: ChatHistoryTurn = {
+            role: message.role,
+            text: message.text,
+          };
+          if (message.role === "assistant" && message.citedSources?.length) {
+            historyTurn.cited_sources = message.citedSources;
+          }
+          return historyTurn;
+        });
+
+      const response = await askQuestion(prompt, historyForRequest);
       const assistantMessage: ChatMessage = {
         id: `a-${Date.now()}`,
         role: "assistant",

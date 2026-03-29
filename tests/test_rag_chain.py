@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from langchain_core.documents import Document
@@ -8,7 +8,9 @@ from app.rag_chain import (
     _format_docs,
     _build_cited_sources,
     _build_context_items,
+    _is_likely_follow_up,
     _replace_inline_chunk_citations,
+    _rewrite_follow_up_query,
     _rerank,
     RAG_PROMPT,
     get_llm,
@@ -258,6 +260,31 @@ class TestRerank:
         assert len(result) == 3
 
 
+class TestFollowUpResolver:
+    def test_detects_likely_follow_up_with_referential_language(self):
+        assert _is_likely_follow_up(
+            "Is this exam hard?",
+            [{"role": "assistant", "text": "The complex exam covers algorithms."}],
+        )
+
+    def test_skips_follow_up_detection_without_history(self):
+        assert not _is_likely_follow_up("Is this exam hard?", [])
+
+    @pytest.mark.asyncio
+    async def test_rewrite_falls_back_to_original_query_on_error(self):
+        async def _failing_rewriter(_input):
+            raise Exception("rewrite model failed")
+
+        rewritten = await _rewrite_follow_up_query(
+            query="Is this exam hard?",
+            chat_history=[
+                {"role": "user", "text": "Tell me about the ELTE complex exam."}
+            ],
+            llm=RunnableLambda(_failing_rewriter),
+        )
+        assert rewritten == "Is this exam hard?"
+
+
 class _FakeRetriever:
     def __init__(self, docs):
         self._docs = docs
@@ -272,6 +299,24 @@ class _FakeVectorStore:
 
     def as_retriever(self, **_kwargs):
         return _FakeRetriever(self._docs)
+
+
+class _RecordingRetriever:
+    def __init__(self, docs):
+        self._docs = docs
+        self.last_query = ""
+
+    def invoke(self, query):
+        self.last_query = str(query)
+        return list(self._docs)
+
+
+class _RecordingVectorStore:
+    def __init__(self, docs):
+        self.retriever = _RecordingRetriever(docs)
+
+    def as_retriever(self, **_kwargs):
+        return self.retriever
 
 
 class TestAskRetrieval:
@@ -328,3 +373,288 @@ class TestAskRetrieval:
         assert result.cited_sources[0]["citation_id"] == "C2"
         assert result.cited_sources[0]["source"] == "https://inf.elte.hu/en/node/326060"
         assert result.cited_sources[0]["source_type"] == "news"
+
+    @pytest.mark.asyncio
+    @patch("app.rag_chain.settings")
+    @patch("app.rag_chain.get_llm")
+    async def test_ask_retries_structured_output_methods_on_response_format_error(
+        self, mock_get_llm, mock_settings
+    ):
+        from app.rag_chain import ask
+
+        mock_settings.retrieval_k = 3
+        mock_settings.retrieval_fetch_k = 5
+        mock_settings.retrieval_hybrid = False
+        mock_settings.retrieval_hybrid_weight = 0.6
+        mock_settings.retrieval_use_reranker = False
+        mock_settings.reranker_model = "mock-reranker"
+        mock_settings.llm_provider = "openrouter"
+        mock_settings.openrouter_model = "mock-generator"
+        mock_settings.openrouter_api_key = "test-key"
+
+        calls: list[str] = []
+
+        async def _structured_output(_input):
+            return RAGOutput(
+                reasoning="context is enough",
+                answer="Deadline is April 15th. [C1]",
+                cited_chunk_ids=["C1"],
+                confidence="high",
+            )
+
+        class FakeLLM:
+            model_name = "fake-model"
+
+            def with_structured_output(self, _schema, **kwargs):
+                method = kwargs.get("method", "json_schema")
+                calls.append(method)
+                if method == "json_schema":
+                    raise Exception(
+                        "Request param: response_format is invalid, recommended val is: must be text or json_object"
+                    )
+                if method == "function_calling":
+                    raise Exception("Provider does not support tools")
+                return RunnableLambda(_structured_output)
+
+        mock_get_llm.return_value = FakeLLM()
+
+        pdf_doc = Document(
+            page_content="Students must submit thesis by April 15th.",
+            metadata={"title": "Thesis Rules", "source": "thesis_rules.pdf", "page": 3},
+        )
+
+        result = await ask(
+            query="When is thesis deadline?",
+            db=_FakeVectorStore([pdf_doc]),
+            news_db=None,
+        )
+
+        assert calls == ["json_schema", "function_calling", "json_mode"]
+        assert result.confidence == "high"
+        assert "cite:C1" in result.answer
+
+    @pytest.mark.asyncio
+    @patch("app.rag_chain.settings")
+    @patch("app.rag_chain.get_llm")
+    async def test_ask_skips_rewrite_for_non_follow_up_queries(
+        self, mock_get_llm, mock_settings
+    ):
+        from app.rag_chain import ask
+
+        mock_settings.retrieval_k = 3
+        mock_settings.retrieval_fetch_k = 5
+        mock_settings.retrieval_hybrid = False
+        mock_settings.retrieval_hybrid_weight = 0.6
+        mock_settings.retrieval_use_reranker = False
+        mock_settings.reranker_model = "mock-reranker"
+        mock_settings.llm_provider = "openrouter"
+        mock_settings.openrouter_model = "mock-generator"
+        mock_settings.openrouter_api_key = "test-key"
+
+        async def _structured_output(_input):
+            return RAGOutput(
+                reasoning="history helps disambiguate",
+                answer="The thesis deadline is April 15th. [C1]",
+                cited_chunk_ids=["C1"],
+                confidence="high",
+            )
+
+        fake_llm = type("FakeLLM", (), {"model_name": "fake-model"})()
+        fake_llm.with_structured_output = lambda _schema, **_kwargs: RunnableLambda(
+            _structured_output
+        )
+        mock_get_llm.return_value = fake_llm
+
+        pdf_doc = Document(
+            page_content="Students must submit thesis by April 15th.",
+            metadata={"title": "Thesis Rules", "source": "thesis_rules.pdf", "page": 3},
+        )
+        vector_store = _RecordingVectorStore([pdf_doc])
+
+        with patch(
+            "app.rag_chain._rewrite_follow_up_query",
+            new_callable=AsyncMock,
+            return_value="Should not be used",
+        ) as rewrite_mock:
+            await ask(
+                query="Explain the thesis submission deadline and late submission policy at ELTE.",
+                chat_history=[
+                    {"role": "user", "text": "When is the thesis deadline?"},
+                    {"role": "assistant", "text": "The deadline is April 15th. [C1]"},
+                ],
+                db=vector_store,
+            )
+
+        rewrite_mock.assert_not_called()
+        assert (
+            vector_store.retriever.last_query
+            == "Explain the thesis submission deadline and late submission policy at ELTE."
+        )
+
+    @pytest.mark.asyncio
+    @patch("app.rag_chain.settings")
+    @patch("app.rag_chain.get_llm")
+    async def test_ask_rewrites_follow_up_queries_for_retrieval(
+        self, mock_get_llm, mock_settings
+    ):
+        from app.rag_chain import ask
+
+        mock_settings.retrieval_k = 3
+        mock_settings.retrieval_fetch_k = 5
+        mock_settings.retrieval_hybrid = False
+        mock_settings.retrieval_hybrid_weight = 0.6
+        mock_settings.retrieval_use_reranker = False
+        mock_settings.reranker_model = "mock-reranker"
+        mock_settings.llm_provider = "openrouter"
+        mock_settings.openrouter_model = "mock-generator"
+        mock_settings.openrouter_api_key = "test-key"
+
+        async def _structured_output(_input):
+            return RAGOutput(
+                reasoning="rewritten query resolved the topic",
+                answer="The exam difficulty depends on your preparation. [C1]",
+                cited_chunk_ids=["C1"],
+                confidence="medium",
+            )
+
+        fake_llm = type("FakeLLM", (), {"model_name": "fake-model"})()
+        fake_llm.with_structured_output = lambda _schema, **_kwargs: RunnableLambda(
+            _structured_output
+        )
+        mock_get_llm.return_value = fake_llm
+
+        doc = Document(
+            page_content="The ELTE complex exam difficulty varies by specialization.",
+            metadata={"title": "Exam Guide", "source": "exam_guide.pdf", "page": 2},
+        )
+        vector_store = _RecordingVectorStore([doc])
+        rewritten_query = "Is the ELTE complex exam hard?"
+
+        with patch(
+            "app.rag_chain._rewrite_follow_up_query",
+            new_callable=AsyncMock,
+            return_value=rewritten_query,
+        ) as rewrite_mock:
+            await ask(
+                query="Is this exam hard?",
+                chat_history=[
+                    {"role": "user", "text": "Tell me about the ELTE complex exam."},
+                    {"role": "assistant", "text": "It includes written and oral parts."},
+                ],
+                db=vector_store,
+            )
+
+        rewrite_mock.assert_awaited_once()
+        assert vector_store.retriever.last_query == rewritten_query
+
+    @pytest.mark.asyncio
+    @patch("app.rag_chain.settings")
+    @patch("app.rag_chain.get_llm")
+    async def test_ask_merges_recent_carry_over_sources_and_deduplicates_before_rerank(
+        self, mock_get_llm, mock_settings
+    ):
+        from app.rag_chain import ask
+
+        mock_settings.retrieval_k = 5
+        mock_settings.retrieval_fetch_k = 5
+        mock_settings.retrieval_hybrid = False
+        mock_settings.retrieval_hybrid_weight = 0.6
+        mock_settings.retrieval_use_reranker = True
+        mock_settings.reranker_model = "mock-reranker"
+        mock_settings.llm_provider = "openrouter"
+        mock_settings.openrouter_model = "mock-generator"
+        mock_settings.openrouter_api_key = "test-key"
+
+        async def _structured_output(_input):
+            return RAGOutput(
+                reasoning="used retrieved and carry-over context",
+                answer="Internship requirements are listed in the guide. [C3]",
+                cited_chunk_ids=["C3"],
+                confidence="high",
+            )
+
+        fake_llm = type("FakeLLM", (), {"model_name": "fake-model"})()
+        fake_llm.with_structured_output = lambda _schema, **_kwargs: RunnableLambda(
+            _structured_output
+        )
+        mock_get_llm.return_value = fake_llm
+
+        duplicate_text = "Students must submit thesis by April 15th."
+        retrieved_docs = [
+            Document(
+                page_content=duplicate_text,
+                metadata={"title": "Thesis Rules", "source": "thesis_rules.pdf", "page": 3},
+            ),
+            Document(
+                page_content="The final exam consists of written and oral parts.",
+                metadata={"title": "Exam Rules", "source": "exam_rules.pdf", "page": 2},
+            ),
+        ]
+
+        async def _passthrough_rerank(_query, docs, top_k, reranker_model=None):
+            return docs[:top_k]
+
+        with patch(
+            "app.rag_chain._rerank",
+            new_callable=AsyncMock,
+            side_effect=_passthrough_rerank,
+        ) as rerank_mock:
+            await ask(
+                query="Describe internship requirements for graduation at ELTE university program",
+                db=_FakeVectorStore(retrieved_docs),
+                chat_history=[
+                    {
+                        "role": "assistant",
+                        "text": "Older assistant response.",
+                        "cited_sources": [
+                            {
+                                "citation_id": "C9",
+                                "source": "older.pdf",
+                                "document": "Older",
+                                "page": 1,
+                                "relevant_snippet": "Old context",
+                                "source_type": "pdf",
+                            }
+                        ],
+                    },
+                    {
+                        "role": "assistant",
+                        "text": "Most recent assistant response.",
+                        "cited_sources": [
+                            {
+                                "citation_id": "C1",
+                                "source": "thesis_rules.pdf",
+                                "document": "Thesis Rules",
+                                "page": 3,
+                                "relevant_snippet": duplicate_text,
+                                "source_type": "pdf",
+                            },
+                            {
+                                "citation_id": "C2",
+                                "source": "internship_guide.pdf",
+                                "document": "Internship Guide",
+                                "page": 1,
+                                "relevant_snippet": "Internship completion is mandatory.",
+                                "source_type": "pdf",
+                            },
+                            {
+                                "citation_id": "C3",
+                                "source": "graduation_reqs.pdf",
+                                "document": "Graduation Requirements",
+                                "page": 7,
+                                "relevant_snippet": "Language exam is required.",
+                                "source_type": "pdf",
+                            },
+                        ],
+                    },
+                ],
+            )
+
+        rerank_docs = rerank_mock.call_args.args[1]
+        rerank_sources = [str(doc.metadata.get("source", "")) for doc in rerank_docs]
+
+        assert rerank_sources.count("thesis_rules.pdf") == 1
+        assert "internship_guide.pdf" in rerank_sources
+        assert "graduation_reqs.pdf" not in rerank_sources
+        assert "older.pdf" not in rerank_sources
+        assert len(rerank_docs) == 3
