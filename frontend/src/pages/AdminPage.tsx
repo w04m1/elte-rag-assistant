@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 import { LoaderCircle, RefreshCw, Trash2, Upload } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -23,8 +23,11 @@ import {
 } from "@/lib/api";
 import type {
   DocumentListItem,
+  EmbeddingProfile,
   JobStatusResponse,
   NewsJobStatusResponse,
+  PipelineMode,
+  RerankerMode,
   RuntimeSettings,
   UsageLogEntry,
   UsageStatsResponse,
@@ -35,10 +38,15 @@ const generatorModelPresets = [
   "custom",
 ];
 
-const rerankerModelPresets = [
-  "google/gemini-3-flash-preview",
-  "custom",
+const embeddingProfiles: Array<{ value: EmbeddingProfile; label: string }> = [
+  { value: "local_minilm", label: "local_minilm (all-MiniLM-L6-v2)" },
+  { value: "local_mpnet", label: "local_mpnet (all-mpnet-base-v2)" },
+  { value: "openai_small", label: "openai_small (text-embedding-3-small)" },
+  { value: "openai_large", label: "openai_large (text-embedding-3-large)" },
 ];
+
+const pipelineModes: PipelineMode[] = ["baseline_v1", "enhanced_v2"];
+const rerankerModes: RerankerMode[] = ["off", "cross_encoder"];
 
 function presetForModel(model: string, presets: string[]): string {
   return presets.includes(model) ? model : "custom";
@@ -88,9 +96,10 @@ function feedbackLegend(feedback: boolean | null | undefined): {
 export function AdminPage() {
   const [settings, setSettings] = useState<RuntimeSettings | null>(null);
   const [generatorPreset, setGeneratorPreset] = useState("google/gemini-3-flash-preview");
-  const [rerankerPreset, setRerankerPreset] = useState("google/gemini-3-flash-preview");
   const [customGeneratorModel, setCustomGeneratorModel] = useState("");
-  const [customRerankerModel, setCustomRerankerModel] = useState("");
+  const [embeddingProfile, setEmbeddingProfile] = useState<EmbeddingProfile>("local_minilm");
+  const [pipelineMode, setPipelineMode] = useState<PipelineMode>("baseline_v1");
+  const [rerankerMode, setRerankerMode] = useState<RerankerMode>("off");
   const [systemPrompt, setSystemPrompt] = useState("");
 
   const [documents, setDocuments] = useState<DocumentListItem[]>([]);
@@ -109,22 +118,15 @@ export function AdminPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isPolling = useMemo(
-    () =>
-      [documentsSyncStatus, reindexStatus, newsStatus].some((status) =>
-        ["queued", "running"].includes(status.status),
-      ),
-    [documentsSyncStatus, reindexStatus, newsStatus],
-  );
-
   const loadSettings = async () => {
     const nextSettings = await getAdminSettings();
     setSettings(nextSettings);
     setSystemPrompt(nextSettings.system_prompt);
     setGeneratorPreset(presetForModel(nextSettings.generator_model, generatorModelPresets));
     setCustomGeneratorModel(nextSettings.generator_model);
-    setRerankerPreset(presetForModel(nextSettings.reranker_model, rerankerModelPresets));
-    setCustomRerankerModel(nextSettings.reranker_model);
+    setEmbeddingProfile(nextSettings.embedding_profile);
+    setPipelineMode(nextSettings.pipeline_mode);
+    setRerankerMode(nextSettings.reranker_mode);
   };
 
   const loadDocuments = async () => {
@@ -169,24 +171,11 @@ export function AdminPage() {
     void reloadAll();
   }, []);
 
-  useEffect(() => {
-    if (!isPolling) {
-      return;
-    }
-
-    const interval = setInterval(() => {
-      void loadStatuses();
-    }, 2500);
-
-    return () => clearInterval(interval);
-  }, [isPolling]);
-
   const onSaveSettings = async () => {
     const generatorModel = generatorPreset === "custom" ? customGeneratorModel.trim() : generatorPreset;
-    const rerankerModel = rerankerPreset === "custom" ? customRerankerModel.trim() : rerankerPreset;
 
-    if (!generatorModel || !rerankerModel) {
-      setError("Generator and reranker model names are required.");
+    if (!generatorModel) {
+      setError("Generator model name is required.");
       return;
     }
 
@@ -195,14 +184,17 @@ export function AdminPage() {
     try {
       const nextSettings = await updateAdminSettings({
         generator_model: generatorModel,
-        reranker_model: rerankerModel,
         system_prompt: systemPrompt,
+        embedding_profile: embeddingProfile,
+        pipeline_mode: pipelineMode,
+        reranker_mode: rerankerMode,
       });
       setSettings(nextSettings);
       setGeneratorPreset(presetForModel(nextSettings.generator_model, generatorModelPresets));
       setCustomGeneratorModel(nextSettings.generator_model);
-      setRerankerPreset(presetForModel(nextSettings.reranker_model, rerankerModelPresets));
-      setCustomRerankerModel(nextSettings.reranker_model);
+      setEmbeddingProfile(nextSettings.embedding_profile);
+      setPipelineMode(nextSettings.pipeline_mode);
+      setRerankerMode(nextSettings.reranker_mode);
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : "Failed to update settings.";
       setError(message);
@@ -403,7 +395,7 @@ export function AdminPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Models and Prompt Additions</CardTitle>
+            <CardTitle>Runtime Profiles and Prompt</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -434,25 +426,48 @@ export function AdminPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="reranker-preset">Reranker model</Label>
+              <Label htmlFor="embedding-profile">Embedding profile</Label>
               <Select
-                id="reranker-preset"
-                value={rerankerPreset}
-                onChange={(event) => setRerankerPreset(event.target.value)}
+                id="embedding-profile"
+                value={embeddingProfile}
+                onChange={(event) => setEmbeddingProfile(event.target.value as EmbeddingProfile)}
               >
-                {rerankerModelPresets.map((model) => (
-                  <option key={model} value={model}>
-                    {model}
+                {embeddingProfiles.map((profile) => (
+                  <option key={profile.value} value={profile.value}>
+                    {profile.label}
                   </option>
                 ))}
               </Select>
-              {rerankerPreset === "custom" ? (
-                <Input
-                  placeholder="Enter reranker model name"
-                  value={customRerankerModel}
-                  onChange={(event) => setCustomRerankerModel(event.target.value)}
-                />
-              ) : null}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="pipeline-mode">Pipeline mode</Label>
+              <Select
+                id="pipeline-mode"
+                value={pipelineMode}
+                onChange={(event) => setPipelineMode(event.target.value as PipelineMode)}
+              >
+                {pipelineModes.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {mode}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="reranker-mode">Reranker mode</Label>
+              <Select
+                id="reranker-mode"
+                value={rerankerMode}
+                onChange={(event) => setRerankerMode(event.target.value as RerankerMode)}
+              >
+                {rerankerModes.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {mode}
+                  </option>
+                ))}
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -476,6 +491,11 @@ export function AdminPage() {
               {settings ? (
                 <Badge>
                   Embeddings: {settings.embedding_provider}/{settings.embedding_model}
+                </Badge>
+              ) : null}
+              {settings ? (
+                <Badge>
+                  {settings.pipeline_mode} + {settings.reranker_mode}
                 </Badge>
               ) : null}
             </div>
@@ -577,7 +597,7 @@ export function AdminPage() {
           <CardContent className="space-y-2">
             {renderNewsJobStatus(newsStatus)}
             <p className="text-xs text-muted-foreground">
-              Automatic sync runs every 6 hours. Manual bootstrap creates the initial news index.
+              News updates are manual. Use bootstrap for initial load, then sync on demand.
             </p>
           </CardContent>
         </Card>

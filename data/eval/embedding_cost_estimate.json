@@ -1,0 +1,36 @@
+{
+  "raw_pdf_count": 233,
+  "indexed_source_count": 24,
+  "missing_pdf_count": 209,
+  "missing_page_count": 1397,
+  "tokens_per_page": {
+    "p25": 178.75,
+    "p50": 428.36,
+    "p75": 774.59
+  },
+  "missing_embedding_tokens": {
+    "low": 249713,
+    "mid": 598416,
+    "high": 1082106
+  },
+  "cost_estimates_usd": {
+    "low": {
+      "openai_small_standard_usd": 0.004994,
+      "openai_small_batch_usd": 0.002497,
+      "openai_large_standard_usd": 0.032463,
+      "openai_large_batch_usd": 0.016231
+    },
+    "mid": {
+      "openai_small_standard_usd": 0.011968,
+      "openai_small_batch_usd": 0.005984,
+      "openai_large_standard_usd": 0.077794,
+      "openai_large_batch_usd": 0.038897
+    },
+    "high": {
+      "openai_small_standard_usd": 0.021642,
+      "openai_small_batch_usd": 0.010821,
+      "openai_large_standard_usd": 0.140674,
+      "openai_large_batch_usd": 0.070337
+    }
+  }
+}

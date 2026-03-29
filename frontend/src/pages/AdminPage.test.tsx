@@ -48,6 +48,12 @@ describe("AdminPage", () => {
       generator_model: "google/gemini-3-flash-preview",
       reranker_model: "google/gemini-3-flash-preview",
       system_prompt: "Current prompt",
+      embedding_profile: "local_minilm",
+      pipeline_mode: "baseline_v1",
+      reranker_mode: "off",
+      chunk_profile: "standard",
+      parser_profile: "docling_v1",
+      max_chunks_per_doc: 3,
       embedding_provider: "openrouter",
       embedding_model: "openai/text-embedding-3-large",
     });
@@ -68,6 +74,12 @@ describe("AdminPage", () => {
       generator_model: "google/gemini-3-flash-preview",
       reranker_model: "google/gemini-3-flash-preview",
       system_prompt: "Updated prompt",
+      embedding_profile: "local_minilm",
+      pipeline_mode: "baseline_v1",
+      reranker_mode: "off",
+      chunk_profile: "standard",
+      parser_profile: "docling_v1",
+      max_chunks_per_doc: 3,
       embedding_provider: "openrouter",
       embedding_model: "openai/text-embedding-3-large",
     });
@@ -119,8 +131,10 @@ describe("AdminPage", () => {
     await waitFor(() => {
       expect(updateAdminSettingsMock).toHaveBeenCalledWith({
         generator_model: "google/gemini-3-flash-preview",
-        reranker_model: "google/gemini-3-flash-preview",
         system_prompt: "Updated prompt",
+        embedding_profile: "local_minilm",
+        pipeline_mode: "baseline_v1",
+        reranker_mode: "off",
       });
     });
   });

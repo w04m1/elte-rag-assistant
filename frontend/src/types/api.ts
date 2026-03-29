@@ -1,4 +1,7 @@
 export type ChatRole = "user" | "assistant";
+export type EmbeddingProfile = "local_minilm" | "local_mpnet" | "openai_small" | "openai_large";
+export type PipelineMode = "baseline_v1" | "enhanced_v2";
+export type RerankerMode = "off" | "cross_encoder";
 
 export interface SourceItem {
   content: string;
@@ -36,6 +39,12 @@ export interface RuntimeSettings {
   generator_model: string;
   reranker_model: string;
   system_prompt: string;
+  embedding_profile: EmbeddingProfile;
+  pipeline_mode: PipelineMode;
+  reranker_mode: RerankerMode;
+  chunk_profile: string;
+  parser_profile: string;
+  max_chunks_per_doc: number;
   embedding_provider: string;
   embedding_model: string;
 }
@@ -44,6 +53,12 @@ export interface RuntimeSettingsUpdate {
   generator_model?: string;
   reranker_model?: string;
   system_prompt?: string;
+  embedding_profile?: EmbeddingProfile;
+  pipeline_mode?: PipelineMode;
+  reranker_mode?: RerankerMode;
+  chunk_profile?: string;
+  parser_profile?: string;
+  max_chunks_per_doc?: number;
 }
 
 export interface DocumentListItem {

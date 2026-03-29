@@ -12,6 +12,7 @@ from app.rag_chain import (
     _replace_inline_chunk_citations,
     _rewrite_follow_up_query,
     _rerank,
+    _rerank_cross_encoder,
     RAG_PROMPT,
     get_llm,
     RAGResult,
@@ -189,20 +190,14 @@ class TestCitationGrounding:
 
 class TestRerank:
     @pytest.mark.asyncio
-    @patch("app.rag_chain.settings")
-    @patch("app.rag_chain.get_llm")
-    async def test_rerank_sorts_by_score(self, mock_get_llm, mock_settings):
-        """Verify _rerank parses scores and reorders documents."""
-        from langchain_core.messages import AIMessage
-        from langchain_core.runnables import RunnableLambda
-
-        mock_settings.retrieval_use_reranker = True
-        mock_settings.reranker_model = "openai/gpt-4o-mini"
-
-        async def fake_reranker(_input):
-            return AIMessage(content="[0.3, 0.9, 0.1]")
-
-        mock_get_llm.return_value = RunnableLambda(fake_reranker)
+    @patch("app.rag_chain._rerank_cross_encoder", new_callable=AsyncMock)
+    async def test_rerank_cross_encoder_mode_dispatches(self, rerank_cross_encoder_mock):
+        """Verify _rerank delegates to cross-encoder mode when enabled."""
+        expected_docs = [
+            Document(page_content="Doc B", metadata={"title": "B"}),
+            Document(page_content="Doc A", metadata={"title": "A"}),
+        ]
+        rerank_cross_encoder_mock.return_value = expected_docs
 
         docs = [
             Document(page_content="Doc A", metadata={"title": "A"}),
@@ -210,18 +205,14 @@ class TestRerank:
             Document(page_content="Doc C", metadata={"title": "C"}),
         ]
 
-        result = await _rerank("test query", docs, top_k=2)
+        result = await _rerank("test query", docs, top_k=2, reranker_mode="cross_encoder")
         assert len(result) == 2
-        # Doc B should be first (score 0.9), then Doc A (score 0.3)
-        assert result[0].page_content == "Doc B"
-        assert result[1].page_content == "Doc A"
+        assert result == expected_docs
+        rerank_cross_encoder_mock.assert_awaited_once()
 
     @pytest.mark.asyncio
-    @patch("app.rag_chain.settings")
-    async def test_rerank_disabled(self, mock_settings):
+    async def test_rerank_disabled(self):
         """When reranker is disabled, documents are returned as-is."""
-        mock_settings.retrieval_use_reranker = False
-
         docs = [
             Document(page_content="Doc A", metadata={}),
             Document(page_content="Doc B", metadata={}),
@@ -233,31 +224,39 @@ class TestRerank:
         assert result[0].page_content == "Doc A"
 
     @pytest.mark.asyncio
-    @patch("app.rag_chain.settings")
-    async def test_rerank_empty_docs(self, mock_settings):
+    async def test_rerank_empty_docs(self):
         """Reranking empty list should return empty list."""
-        mock_settings.retrieval_use_reranker = True
         result = await _rerank("query", [], top_k=5)
         assert result == []
 
     @pytest.mark.asyncio
+    @patch("app.rag_chain._rerank_cross_encoder", new_callable=AsyncMock)
+    async def test_rerank_mode_off_skips_reranking(self, rerank_cross_encoder_mock):
+        docs = [
+            Document(page_content="Doc A", metadata={}),
+            Document(page_content="Doc B", metadata={}),
+        ]
+        result = await _rerank("query", docs, top_k=1, reranker_mode="off")
+        assert len(result) == 1
+        assert result[0].page_content == "Doc A"
+        rerank_cross_encoder_mock.assert_not_awaited()
+
+    @pytest.mark.asyncio
     @patch("app.rag_chain.settings")
-    @patch("app.rag_chain.get_llm")
-    async def test_rerank_fallback_on_error(self, mock_get_llm, mock_settings):
-        """If the reranker LLM fails, docs are returned as-is (truncated to top_k)."""
-        from langchain_core.runnables import RunnableLambda
-
-        mock_settings.retrieval_use_reranker = True
-        mock_settings.reranker_model = "openai/gpt-4o-mini"
-
-        async def failing_reranker(_input):
-            raise Exception("LLM error")
-
-        mock_get_llm.return_value = RunnableLambda(failing_reranker)
+    @patch("app.rag_chain._cross_encoder_rank_sync")
+    async def test_cross_encoder_rerank_fallback_on_error(
+        self,
+        rank_sync_mock,
+        mock_settings,
+    ):
+        """If the cross-encoder fails, docs are returned as-is (truncated to top_k)."""
+        mock_settings.reranker_cross_encoder_top_n = 30
+        rank_sync_mock.side_effect = Exception("cross-encoder error")
 
         docs = [Document(page_content=f"Doc {i}", metadata={}) for i in range(5)]
-        result = await _rerank("query", docs, top_k=3)
+        result = await _rerank_cross_encoder(query="query", docs=docs, top_k=3)
         assert len(result) == 3
+        assert [doc.page_content for doc in result] == ["Doc 0", "Doc 1", "Doc 2"]
 
 
 class TestFollowUpResolver:
@@ -591,7 +590,13 @@ class TestAskRetrieval:
             ),
         ]
 
-        async def _passthrough_rerank(_query, docs, top_k, reranker_model=None):
+        async def _passthrough_rerank(
+            _query,
+            docs,
+            top_k,
+            reranker_model=None,
+            reranker_mode="off",
+        ):
             return docs[:top_k]
 
         with patch(

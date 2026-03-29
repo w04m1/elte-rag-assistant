@@ -1,9 +1,8 @@
-import asyncio
 import logging
 import os
 import shutil
 import threading
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from time import perf_counter
@@ -22,7 +21,15 @@ from app.config import settings
 from app.document_sync import run_documents_sync
 from app.embeddings import get_embeddings
 from app.ingest import create_vector_db
+from app.index_snapshots import (
+    build_snapshot_id,
+    compute_corpus_hash,
+    resolve_active_index_path,
+    set_active_snapshot_id,
+    write_snapshot_manifest,
+)
 from app.news_ingest import run_news_pipeline
+from app.profiles import EmbeddingProfile, PipelineMode, RerankerMode
 from app.rag_chain import ask as rag_ask
 from app.runtime_settings import (
     RuntimeSettings,
@@ -69,20 +76,45 @@ def _load_vector_db(embeddings, index_path: str, label: str) -> FAISS | None:
     return db
 
 
+def _resolve_document_index_path(runtime_settings: RuntimeSettings) -> str:
+    profile: EmbeddingProfile = runtime_settings.embedding_profile
+    snapshot_path = resolve_active_index_path(
+        root_dir=settings.index_snapshots_root_path,
+        state_path=settings.active_index_state_path,
+        embedding_profile=profile,
+    )
+    if snapshot_path is not None:
+        return str(snapshot_path)
+    return settings.faiss_index_path
+
+
 def _refresh_retrievers() -> None:
     db = resources.get("db")
     resources["bm25_retriever"] = _build_bm25(db)
 
 
-def _reload_resources_from_disk() -> None:
-    embeddings = resources.get("embeddings")
-    if embeddings is None:
-        embeddings = get_embeddings()
-        resources["embeddings"] = embeddings
-    resources["db"] = _load_vector_db(embeddings, settings.faiss_index_path, "document")
-    resources["news_db"] = _load_vector_db(
-        embeddings, settings.news_faiss_index_path, "news"
-    )
+def _reload_resources_from_disk(runtime_settings: RuntimeSettings | None = None) -> None:
+    if runtime_settings is None:
+        runtime_settings = _get_runtime_settings_store().get()
+
+    try:
+        embeddings = get_embeddings(embedding_profile=runtime_settings.embedding_profile)
+    except Exception:
+        logger.exception(
+            "Failed to initialize embeddings for profile '%s'",
+            runtime_settings.embedding_profile,
+        )
+        resources["embeddings"] = None
+        resources["db"] = None
+        resources["news_db"] = None
+        _refresh_retrievers()
+        return
+
+    resources["embeddings"] = embeddings
+
+    document_index_path = _resolve_document_index_path(runtime_settings)
+    resources["db"] = _load_vector_db(embeddings, document_index_path, "document")
+    resources["news_db"] = _load_vector_db(embeddings, settings.news_faiss_index_path, "news")
     _refresh_retrievers()
 
 
@@ -111,8 +143,51 @@ def _default_news_status(status: str = "idle") -> dict:
 def _run_reindex_job() -> None:
     _set_job_status("reindex_status", status="running", error=None)
     try:
-        create_vector_db()
-        _reload_resources_from_disk()
+        runtime_settings = _get_runtime_settings_store().get()
+        corpus_hash = compute_corpus_hash(settings.raw_data_path)
+        snapshot_id = build_snapshot_id(
+            corpus_hash=corpus_hash,
+            embedding_profile=runtime_settings.embedding_profile,
+            chunk_profile=runtime_settings.chunk_profile,
+            parser_profile=runtime_settings.parser_profile,
+        )
+        snapshot_dir = (
+            Path(settings.index_snapshots_root_path) / snapshot_id
+        )
+        ingest_summary = create_vector_db(
+            source_dir=settings.raw_data_path,
+            output_dir=str(snapshot_dir),
+            embedding_profile=runtime_settings.embedding_profile,
+            chunk_profile=runtime_settings.chunk_profile,
+            parser_profile=runtime_settings.parser_profile,
+        )
+
+        manifest_payload = {
+            "snapshot_id": snapshot_id,
+            "built_at_utc": datetime.now(UTC).isoformat(),
+            "corpus_hash": corpus_hash,
+            "embedding_profile": runtime_settings.embedding_profile,
+            "embedding_provider": runtime_settings.embedding_provider,
+            "embedding_model": runtime_settings.embedding_model,
+            "chunk_profile": runtime_settings.chunk_profile,
+            "parser_profile": runtime_settings.parser_profile,
+            "max_tokens": ingest_summary.get("max_tokens"),
+            "source_count": ingest_summary.get("source_count", 0),
+            "chunk_count": ingest_summary.get("chunk_count", 0),
+            "output_dir": str(snapshot_dir),
+        }
+        write_snapshot_manifest(
+            root_dir=settings.index_snapshots_root_path,
+            snapshot_id=snapshot_id,
+            payload=manifest_payload,
+        )
+        set_active_snapshot_id(
+            state_path=settings.active_index_state_path,
+            embedding_profile=runtime_settings.embedding_profile,
+            snapshot_id=snapshot_id,
+        )
+
+        _reload_resources_from_disk(runtime_settings=runtime_settings)
         db = resources.get("db")
         chunk_count = len(db.docstore._dict) if db is not None else 0
         _set_job_status(
@@ -120,6 +195,11 @@ def _run_reindex_job() -> None:
             status="completed",
             error=None,
             vector_count=chunk_count,
+            result={
+                "snapshot_id": snapshot_id,
+                "embedding_profile": runtime_settings.embedding_profile,
+                "chunk_count": chunk_count,
+            },
         )
     except Exception as exc:
         logger.exception("Reindex failed")
@@ -185,18 +265,9 @@ def _run_news_job(mode: Literal["bootstrap", "sync"]) -> None:
         _news_job_lock.release()
 
 
-async def _periodic_news_sync() -> None:
-    interval_seconds = max(60, int(settings.news_sync_interval_seconds))
-    while True:
-        await asyncio.sleep(interval_seconds)
-        await asyncio.to_thread(_run_news_job, "sync")
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load runtime settings and retrieval resources on startup."""
-    embeddings = get_embeddings()
-    resources["embeddings"] = embeddings
     resources["runtime_settings_store"] = RuntimeSettingsStore(
         settings.runtime_settings_path
     )
@@ -212,21 +283,11 @@ async def lifespan(app: FastAPI):
     }
     resources["news_status"] = _default_news_status()
 
-    resources["db"] = _load_vector_db(embeddings, settings.faiss_index_path, "document")
-    resources["news_db"] = _load_vector_db(
-        embeddings, settings.news_faiss_index_path, "news"
-    )
-    _refresh_retrievers()
-
-    sync_task = asyncio.create_task(_periodic_news_sync())
-    resources["news_sync_task"] = sync_task
+    _reload_resources_from_disk()
 
     try:
         yield
     finally:
-        sync_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await sync_task
         resources.clear()
 
 
@@ -295,6 +356,9 @@ class AskResponse(BaseModel):
     reasoning: str = ""
     confidence: str = ""
     cited_sources: list[CitedSourceItem] = Field(default_factory=list)
+    answer_mode: Literal["llm", "deterministic"] = "llm"
+    verification_passed: bool | None = None
+    guardrails_triggered: list[str] = Field(default_factory=list)
 
 
 class DocumentListItem(BaseModel):
@@ -312,6 +376,12 @@ class RuntimeSettingsUpdateRequest(BaseModel):
     generator_model: str | None = None
     reranker_model: str | None = None
     system_prompt: str | None = None
+    embedding_profile: EmbeddingProfile | None = None
+    pipeline_mode: PipelineMode | None = None
+    reranker_mode: RerankerMode | None = None
+    chunk_profile: str | None = None
+    parser_profile: str | None = None
+    max_chunks_per_doc: int | None = None
 
 
 class JobStatusResponse(BaseModel):
@@ -319,6 +389,12 @@ class JobStatusResponse(BaseModel):
     error: str | None = None
     vector_count: int | None = None
     result: dict | None = None
+
+
+class ActiveIndexResponse(BaseModel):
+    embedding_profile: EmbeddingProfile
+    index_path: str
+    from_snapshot: bool
 
 
 class NewsJobStatusResponse(BaseModel):
@@ -480,6 +556,9 @@ async def ask_endpoint(request: QueryRequest):
             system_prompt=compose_system_prompt(runtime_settings.system_prompt),
             generator_model=runtime_settings.generator_model,
             reranker_model=runtime_settings.reranker_model,
+            pipeline_mode=runtime_settings.pipeline_mode,
+            reranker_mode=runtime_settings.reranker_mode,
+            max_chunks_per_doc=runtime_settings.max_chunks_per_doc,
         )
     except HTTPException:
         latency_ms = round((perf_counter() - started_at) * 1000, 2)
@@ -532,6 +611,9 @@ async def ask_endpoint(request: QueryRequest):
         reasoning=result.reasoning,
         confidence=result.confidence,
         cited_sources=[CitedSourceItem(**cs) for cs in result.cited_sources],
+        answer_mode=result.answer_mode,
+        verification_passed=result.verification_passed,
+        guardrails_triggered=result.guardrails_triggered,
     )
     latency_ms = round((perf_counter() - started_at) * 1000, 2)
     _safe_append_usage_entry(
@@ -583,10 +665,41 @@ async def get_admin_settings():
 @app.put("/admin/settings", response_model=RuntimeSettings)
 async def update_admin_settings(request: RuntimeSettingsUpdateRequest):
     store = _get_runtime_settings_store()
-    return store.update(
+    previous = store.get()
+    updated = store.update(
         generator_model=request.generator_model,
         reranker_model=request.reranker_model,
         system_prompt=request.system_prompt,
+        embedding_profile=request.embedding_profile,
+        pipeline_mode=request.pipeline_mode,
+        reranker_mode=request.reranker_mode,
+        chunk_profile=request.chunk_profile,
+        parser_profile=request.parser_profile,
+        max_chunks_per_doc=request.max_chunks_per_doc,
+    )
+    if updated.embedding_profile != previous.embedding_profile:
+        _reload_resources_from_disk(runtime_settings=updated)
+    return updated
+
+
+@app.get("/admin/indexes/active", response_model=ActiveIndexResponse)
+async def get_active_index():
+    runtime_settings = _get_runtime_settings_store().get()
+    snapshot_path = resolve_active_index_path(
+        root_dir=settings.index_snapshots_root_path,
+        state_path=settings.active_index_state_path,
+        embedding_profile=runtime_settings.embedding_profile,
+    )
+    if snapshot_path is not None:
+        return ActiveIndexResponse(
+            embedding_profile=runtime_settings.embedding_profile,
+            index_path=str(snapshot_path),
+            from_snapshot=True,
+        )
+    return ActiveIndexResponse(
+        embedding_profile=runtime_settings.embedding_profile,
+        index_path=settings.faiss_index_path,
+        from_snapshot=False,
     )
 
 
@@ -725,8 +838,11 @@ async def health():
     runtime_settings = _get_runtime_settings_store().get()
     return {
         "status": "ok",
+        "embedding_profile": runtime_settings.embedding_profile,
         "embedding_provider": runtime_settings.embedding_provider,
         "embedding_model": runtime_settings.embedding_model,
+        "pipeline_mode": runtime_settings.pipeline_mode,
+        "reranker_mode": runtime_settings.reranker_mode,
         "llm_provider": settings.llm_provider,
         "llm_model": runtime_settings.generator_model,
         "reranker_model": runtime_settings.reranker_model,

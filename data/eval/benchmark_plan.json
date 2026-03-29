@@ -1,0 +1,13 @@
+{
+  "anchors": ["local_minilm", "openai_large"],
+  "embedding_profiles": [
+    "local_minilm",
+    "local_mpnet",
+    "openai_small",
+    "openai_large"
+  ],
+  "pipeline_modes": ["baseline_v1", "enhanced_v2"],
+  "reranker_modes": ["cross_encoder", "off"],
+  "stage_b_top_families": 2,
+  "stage_b_repeats": 3
+}

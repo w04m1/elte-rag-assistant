@@ -17,12 +17,25 @@ At query time, the runtime pipeline performs:
 3. Dense retrieval (FAISS, MMR) and sparse retrieval (BM25), then fusion with RRF.
 4. News retrieval from the separate news index and fusion into the same candidate pool.
 5. Citation carry-over from only the most recent assistant turn (maximum 2 cited sources), merged into candidates and deduplicated by source + page + snippet.
-6. Optional LLM reranking of the merged candidate set.
+6. Optional local cross-encoder reranking of the merged candidate set.
 7. Answer generation constrained by retrieved context and system prompt rules, with chat history passed to the generator.
 
 This design preserves conversational continuity while keeping retrieval scope focused: full chat history is not indexed or searched in vector retrieval.
 
 Responses are structured and include answer text, confidence, reasoning field, and cited sources. Inline citations are normalized to stable source references for UI rendering.
+
+## Pipeline Modes and Reranker Modes
+The runtime now supports two pipeline modes:
+- `baseline_v1`: original production behavior for stable comparison.
+- `enhanced_v2`: enables additional context controls (currently document diversity caps and post-answer verification checks).
+
+Reranking is runtime-selectable:
+- `cross_encoder`: local cross-encoder reranking (`cross-encoder/ms-marco-MiniLM-L-6-v2`) with strict candidate caps.
+- `off`: no reranking.
+
+These controls allow direct A/B comparisons without removing baseline behavior.
+
+Historical experiment note: an `llm` reranker mode was also included during benchmark sweeps (March 29, 2026) as part of the trial-and-error methodology. It was later retired from runtime mode options after ablation results showed no quality advantage over `off` and worse latency/token efficiency.
 
 ## Conversation Context Transport
 The backend remains stateless per request. The frontend sends chat history with role/text and optional assistant `cited_sources` metadata.  
@@ -33,8 +46,28 @@ The FastAPI backend exposes admin operations for:
 - Runtime model/prompt configuration.
 - Document upload and deletion.
 - Document synchronization and vector reindex operations.
-- News index bootstrap/sync.
+- News index bootstrap/sync (manual trigger only).
 - Usage analytics review.
+
+There is no periodic background scheduler for news or document sync. Refresh operations are explicitly user-triggered from the admin API/UI.
+
+Admin runtime settings include embedding profile selection (`local_minilm`, `local_mpnet`, `openai_small`, `openai_large`), pipeline mode, reranker mode, and chunk/parser profiles used for indexed snapshots.
+
+## Snapshot-Based Index Isolation
+To prevent embedding-profile collisions, document indexes are versioned snapshots stored under `data/indexes/<snapshot-id>`.
+
+Snapshot key components:
+- Corpus fingerprint hash
+- Embedding profile
+- Chunk profile
+- Parser profile
+
+Each reindex writes:
+- FAISS index artifacts
+- `manifest.json` with build metadata (timestamp, source/chunk counts, model/profile information)
+
+Active index selection is profile-scoped and stored in `data/runtime/active_indexes.json`.  
+Switching embedding profile updates the active pointer rather than overwriting prior indexes.
 
 The React admin panel provides corresponding controls and status displays.
 
@@ -65,6 +98,12 @@ Evaluation is executed with a fixed ELTE question set in `data/eval/questions.js
 Outputs are saved to:
 - `data/eval/latest_metrics.json`
 - `docs/thesis/evaluation.md`
+
+Benchmarking beyond single-run evaluation is executed via `scripts/run_benchmarks.py`, which supports:
+- Stage A family comparison (pipeline mode × reranker mode with anchor embeddings)
+- Stage B embedding sweep for selected families
+- Single-turn and multi-turn chat-history scenario sets
+- Cost instrumentation outputs (token/cost estimates with explicit pricing assumptions)
 
 ## Deployment and Reproducibility
 The system is containerized with Docker Compose (`backend` + `frontend`). Reproducibility is validated through a fixed command gate: backend tests, frontend tests/build, compose build/start, and health endpoint checks.

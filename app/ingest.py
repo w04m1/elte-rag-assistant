@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+import pickle
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from langchain_core.documents import Document
 
 from app.config import settings
 from app.embeddings import get_embeddings
+from app.profiles import EmbeddingProfile, get_embedding_profile_spec
 
 logger = logging.getLogger(__name__)
 
@@ -108,23 +110,108 @@ def _list_ingestion_inputs(source_dir: str | Path) -> list[Path]:
     return sorted(paths, key=lambda path: path.name.lower())
 
 
+def _load_documents_from_index_pickle(index_dir: str | Path) -> list[Document]:
+    """Load already chunked documents from an existing FAISS index pickle.
+
+    This enables fast re-embedding benchmarks without reparsing the full corpus.
+    """
+    index_pkl = Path(index_dir) / "index.pkl"
+    if not index_pkl.exists():
+        raise FileNotFoundError(f"Index pickle not found: {index_pkl}")
+
+    raw_payload = pickle.loads(index_pkl.read_bytes())
+    if (
+        not isinstance(raw_payload, tuple)
+        or len(raw_payload) != 2
+        or not isinstance(raw_payload[1], dict)
+    ):
+        raise ValueError(f"Unsupported index pickle structure in {index_pkl}")
+
+    docstore = raw_payload[0]
+    index_to_docstore_id: dict[int, str] = raw_payload[1]
+    doc_dict = getattr(docstore, "_dict", None)
+    if not isinstance(doc_dict, dict):
+        raise ValueError(f"Invalid docstore in {index_pkl}")
+
+    ordered_ids = [
+        doc_id
+        for _index, doc_id in sorted(index_to_docstore_id.items(), key=lambda item: item[0])
+    ]
+    documents: list[Document] = []
+    for doc_id in ordered_ids:
+        doc = doc_dict.get(doc_id)
+        if isinstance(doc, Document):
+            documents.append(doc)
+
+    if not documents:
+        raise ValueError(f"No documents found in {index_pkl}")
+    return documents
+
+
 def create_vector_db(
     source_dir: str | None = None,
     output_dir: str | None = None,
-) -> None:
+    *,
+    embedding_profile: EmbeddingProfile | None = None,
+    chunk_profile: str | None = None,
+    parser_profile: str | None = None,
+    max_tokens: int | None = None,
+) -> dict[str, Any]:
     source_dir = source_dir or settings.raw_data_path
     output_dir = output_dir or settings.faiss_index_path
+    resolved_parser_profile = parser_profile or settings.default_parser_profile
+    resolved_chunk_profile = chunk_profile or settings.default_chunk_profile
 
     source_paths = _list_ingestion_inputs(source_dir)
-    if not source_paths:
-        logger.warning("No supported ingestion inputs (.pdf/.docx) found in %s", source_dir)
-        return
-
-    logger.info("Found %d supported files (.pdf/.docx) in %s", len(source_paths), source_dir)
-
     documents: list[Document] = []
+    source_count = 0
+    resolved_embedding_model = (
+        get_embedding_profile_spec(embedding_profile).model
+        if embedding_profile is not None
+        else settings.embedding_model_name
+    )
+    tokenizer_model = (
+        resolved_embedding_model
+        if not resolved_embedding_model.startswith("openai/")
+        else settings.embedding_model_name
+    )
+    resolved_max_tokens = max_tokens or settings.max_tokens
 
-    if source_paths:
+    if resolved_parser_profile == "reuse_index_chunks_v1":
+        logger.info(
+            "Parser profile '%s': reusing chunks from %s/index.pkl",
+            resolved_parser_profile,
+            settings.faiss_index_path,
+        )
+        documents = _load_documents_from_index_pickle(settings.faiss_index_path)
+        source_count = len(
+            {
+                str(doc.metadata.get("source", "")).strip()
+                for doc in documents
+                if str(doc.metadata.get("source", "")).strip()
+            }
+        )
+        logger.info(
+            "Loaded %d pre-chunked documents from existing index (%d sources).",
+            len(documents),
+            source_count,
+        )
+    else:
+        if not source_paths:
+            logger.warning("No supported ingestion inputs (.pdf/.docx) found in %s", source_dir)
+            return {
+                "source_count": 0,
+                "chunk_count": 0,
+                "output_dir": output_dir,
+                "embedding_profile": embedding_profile,
+                "chunk_profile": resolved_chunk_profile,
+                "parser_profile": resolved_parser_profile,
+                "max_tokens": resolved_max_tokens,
+            }
+
+        source_count = len(source_paths)
+        logger.info("Found %d supported files (.pdf/.docx) in %s", source_count, source_dir)
+
         pipeline_options = PdfPipelineOptions()
         pipeline_options.do_ocr = False
         pipeline_options.do_table_structure = True
@@ -138,8 +225,8 @@ def create_vector_db(
             },
         )
         chunker = HybridChunker(
-            tokenizer=f"sentence-transformers/{settings.embedding_model_name}",
-            max_tokens=settings.max_tokens,
+            tokenizer=f"sentence-transformers/{tokenizer_model}",
+            max_tokens=resolved_max_tokens,
             merge_peers=True,
         )
 
@@ -174,12 +261,22 @@ def create_vector_db(
 
     logger.info("Total chunks/documents indexed: %d", len(documents))
 
-    embeddings = get_embeddings()
+    embeddings = get_embeddings(embedding_profile=embedding_profile)
 
     logger.info("Creating vector store...")
     db = FAISS.from_documents(documents, embeddings)
     db.save_local(output_dir)
     logger.info(f"Vector store saved to {output_dir} ({len(documents)} vectors).")
+    return {
+        "source_count": source_count,
+        "chunk_count": len(documents),
+        "output_dir": output_dir,
+        "embedding_profile": embedding_profile,
+        "embedding_model": resolved_embedding_model,
+        "chunk_profile": resolved_chunk_profile,
+        "parser_profile": resolved_parser_profile,
+        "max_tokens": resolved_max_tokens,
+    }
 
 
 def main() -> None:

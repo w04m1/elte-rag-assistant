@@ -21,6 +21,8 @@ class Settings(BaseSettings):
 
     # FAISS vector store path
     faiss_index_path: str = "data/vector_store"
+    index_snapshots_root_path: str = "data/indexes"
+    active_index_state_path: str = "data/runtime/active_indexes.json"
     runtime_settings_path: str = "data/runtime/settings.json"
     usage_log_path: str = "data/runtime/usage_log.jsonl"
     documents_sync_state_path: str = "data/runtime/documents_sync_state.json"
@@ -41,6 +43,7 @@ class Settings(BaseSettings):
     news_faiss_index_path: str = "data/news_vector_store"
     news_bootstrap_pages: int = 4
     news_sync_pages: int = 2
+    # Deprecated: periodic scheduler removed, news sync is manual-only.
     news_sync_interval_seconds: int = 21600
     news_request_timeout_seconds: float = 30.0
 
@@ -55,9 +58,12 @@ class Settings(BaseSettings):
     retrieval_use_reranker: bool = True
     retrieval_hybrid: bool = True
     retrieval_hybrid_weight: float = 0.6
+    retrieval_max_chunks_per_doc: int = 3
 
     # Reranker model
     reranker_model: str = "google/gemini-3-flash-preview"
+    reranker_cross_encoder_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    reranker_cross_encoder_top_n: int = 30
 
     # LLM provider
     llm_provider: Literal["openrouter", "ollama"] = "openrouter"
@@ -74,6 +80,19 @@ class Settings(BaseSettings):
     api_host: str = "127.0.0.1"
     api_port: int = 8000
     cors_allow_origins: str = "*"
+
+    # Runtime profile defaults
+    default_embedding_profile: Literal[
+        "local_minilm",
+        "local_mpnet",
+        "openai_small",
+        "openai_large",
+    ] = "local_minilm"
+    default_pipeline_mode: Literal["baseline_v1", "enhanced_v2"] = "baseline_v1"
+    # Kept as plain string for backward compatibility with older env values (e.g. "llm").
+    default_reranker_mode: str = "off"
+    default_chunk_profile: str = "standard"
+    default_parser_profile: str = "docling_v1"
 
 
 # Singleton

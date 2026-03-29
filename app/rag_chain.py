@@ -1,6 +1,6 @@
-import json
 import logging
 import re
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -11,8 +11,12 @@ from langchain_community.vectorstores import FAISS
 from pydantic import BaseModel, Field as PydanticField, field_validator
 
 from app.config import settings
+from app.profiles import PipelineMode, RerankerMode
 
 logger = logging.getLogger(__name__)
+_CROSS_ENCODER_MODELS: dict[str, Any] = {}
+_CROSS_ENCODER_LOCK = threading.Lock()
+_NEWS_DIMENSION_WARNED: set[tuple[int | None, int | None]] = set()
 
 
 class CitedSource(BaseModel):
@@ -107,19 +111,6 @@ def build_rag_prompt(system_prompt: str) -> ChatPromptTemplate:
 
 
 RAG_PROMPT = build_rag_prompt(DEFAULT_SYSTEM_PROMPT)
-
-RERANK_PROMPT = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            "You are a relevance scoring system. Given a query and a list of text "
-            "chunks, score each chunk's relevance to the query on a scale of 0.0 to "
-            "1.0. Return ONLY a JSON array of numbers representing the scores in the "
-            "same order as the chunks. Example: [0.9, 0.3, 0.7]",
-        ),
-        ("human", "Query: {query}\n\nChunks:\n{chunks}"),
-    ]
-)
 
 FOLLOW_UP_REWRITE_PROMPT = ChatPromptTemplate.from_messages(
     [
@@ -229,6 +220,70 @@ def _dedupe_docs_by_source_page_snippet(docs: list[Document]) -> list[Document]:
         deduped.append(doc)
 
     return deduped
+
+
+def _apply_doc_diversity_cap(
+    docs: list[Document],
+    *,
+    max_chunks_per_doc: int,
+) -> list[Document]:
+    if max_chunks_per_doc <= 0:
+        return docs
+    counts: dict[str, int] = {}
+    capped: list[Document] = []
+    for doc in docs:
+        source = str(doc.metadata.get("source", "unknown"))
+        current = counts.get(source, 0)
+        if current >= max_chunks_per_doc:
+            continue
+        counts[source] = current + 1
+        capped.append(doc)
+    return capped
+
+
+def _strip_markdown_citations(answer: str) -> str:
+    without_links = re.sub(r"\[[^\]]+\]\(cite:[^)]+\)", "", answer)
+    without_brackets = re.sub(r"\[[^\]]+\]", "", without_links)
+    return re.sub(r"\s+", " ", without_brackets).strip().lower()
+
+
+def _verify_answer_in_context(
+    *,
+    query: str,
+    answer: str,
+    context_items: list[dict[str, Any]],
+) -> tuple[bool, list[str]]:
+    normalized_answer = _strip_markdown_citations(answer)
+    if not normalized_answer:
+        return False, ["empty_answer"]
+
+    full_context = " ".join(
+        str(item.get("content", "")).lower() for item in context_items
+    )
+    if not full_context.strip():
+        return False, ["empty_context"]
+
+    triggers: list[str] = []
+    likely_extractive_query = bool(
+        re.search(r"\b(when|deadline|date|how much|fee|amount|what is)\b", query.lower())
+    )
+    target_matches = re.findall(
+        r"\b\d{1,4}(?:[-/]\d{1,2}(?:[-/]\d{1,4})?)?\b|\b\d+(?:\.\d+)?\b",
+        normalized_answer,
+    )
+    if likely_extractive_query and target_matches:
+        if not any(target in full_context for target in target_matches):
+            triggers.append("answer_value_not_in_context")
+            return False, triggers
+
+    answer_tokens = [
+        token for token in re.findall(r"\b[a-z0-9]{5,}\b", normalized_answer)[:10]
+    ]
+    if answer_tokens and not any(token in full_context for token in answer_tokens):
+        triggers.append("answer_terms_not_in_context")
+        return False, triggers
+
+    return True, triggers
 
 
 def _citation_marker(citation_id: str) -> str:
@@ -362,6 +417,9 @@ class RAGResult:
     reasoning: str = ""
     confidence: str = ""
     cited_sources: list[dict[str, Any]] = field(default_factory=list)
+    answer_mode: Literal["llm", "deterministic"] = "llm"
+    verification_passed: bool | None = None
+    guardrails_triggered: list[str] = field(default_factory=list)
 
 
 def get_llm(model_override: str | None = None):
@@ -394,57 +452,111 @@ async def _rerank(
     docs: list[Document],
     top_k: int,
     reranker_model: str | None = None,
+    reranker_mode: RerankerMode = "off",
 ) -> list[Document]:
-    """Rerank docs using an LLM-based relevance scorer."""
-    if not settings.retrieval_use_reranker or not docs:
+    """Rerank docs using the configured reranking strategy."""
+    if not docs:
+        return docs[:top_k]
+    if reranker_mode == "off":
         return docs[:top_k]
 
-    logger.info(
-        "Reranking %d documents to top %d using %s",
-        len(docs),
-        top_k,
-        reranker_model or settings.reranker_model,
-    )
+    if reranker_mode == "cross_encoder":
+        return await _rerank_cross_encoder(
+            query=query,
+            docs=docs,
+            top_k=top_k,
+            reranker_model=reranker_model,
+        )
 
-    reranker_llm = get_llm(model_override=reranker_model or settings.reranker_model)
+    logger.warning("Unknown reranker mode '%s'; returning documents as-is", reranker_mode)
+    return docs[:top_k]
 
-    chunks_text = "\n\n".join(
-        f"[Chunk {i + 1}]: {doc.page_content[:500]}" for i, doc in enumerate(docs)
-    )
 
+def _load_cross_encoder(model_name: str):
+    with _CROSS_ENCODER_LOCK:
+        cached = _CROSS_ENCODER_MODELS.get(model_name)
+        if cached is not None:
+            return cached
+
+        from sentence_transformers import CrossEncoder
+        import torch
+
+        device = "cpu"
+        if torch.cuda.is_available():
+            device = "cuda"
+        if device == "cpu" and hasattr(torch.backends, "mps"):
+            try:
+                if torch.backends.mps.is_built() and torch.backends.mps.is_available():
+                    device = "mps"
+            except Exception:
+                pass
+        if device == "cpu" and hasattr(torch, "xpu"):
+            try:
+                if torch.xpu.is_available():
+                    device = "xpu"
+            except Exception:
+                pass
+        logger.info("Loading cross-encoder '%s' on %s", model_name, device)
+        model = CrossEncoder(model_name, device=device)
+        _CROSS_ENCODER_MODELS[model_name] = model
+        return model
+
+
+def _cross_encoder_rank_sync(
+    *,
+    query: str,
+    docs: list[Document],
+    model_name: str,
+) -> list[tuple[Document, float]]:
+    model = _load_cross_encoder(model_name)
+    pairs = [[query, doc.page_content[:1200]] for doc in docs]
+    scores = model.predict(pairs)
+    scored: list[tuple[Document, float]] = []
+    for doc, score in zip(docs, scores):
+        scored.append((doc, float(score)))
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return scored
+
+
+def _faiss_index_dim(store: FAISS | None) -> int | None:
+    if store is None:
+        return None
+    index = getattr(store, "index", None)
+    dim = getattr(index, "d", None)
     try:
-        chain = RERANK_PROMPT | reranker_llm | StrOutputParser()
-        result = await chain.ainvoke({"query": query, "chunks": chunks_text})
+        return int(dim) if dim is not None else None
+    except (TypeError, ValueError):
+        return None
 
-        # Strip markdown code fences if present
-        result = result.strip()
-        if result.startswith("```"):
-            result = result.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
-        scores: list[float] = json.loads(result)
+async def _rerank_cross_encoder(
+    *,
+    query: str,
+    docs: list[Document],
+    top_k: int,
+    reranker_model: str | None = None,
+) -> list[Document]:
+    model_name = reranker_model or settings.reranker_cross_encoder_model
+    cap = max(1, int(settings.reranker_cross_encoder_top_n))
+    capped_docs = docs[:cap]
+    logger.info(
+        "Cross-encoder reranking %d documents to top %d using %s",
+        len(capped_docs),
+        top_k,
+        model_name,
+    )
+    try:
+        import asyncio
 
-        if not isinstance(scores, list) or len(scores) != len(docs):
-            logger.warning(
-                "Reranker returned invalid scores (expected %d, got %s), "
-                "skipping reranking",
-                len(docs),
-                len(scores) if isinstance(scores, list) else "non-list",
-            )
-            return docs[:top_k]
-
-        scored_docs = sorted(zip(docs, scores), key=lambda x: x[1], reverse=True)
-        reranked = [doc for doc, _score in scored_docs[:top_k]]
-
-        logger.info(
-            "Reranking complete. Top scores: %s",
-            [f"{s:.2f}" for _, s in scored_docs[:top_k]],
+        scored = await asyncio.to_thread(
+            _cross_encoder_rank_sync,
+            query=query,
+            docs=capped_docs,
+            model_name=model_name,
         )
-        return reranked
-
+        return [doc for doc, _score in scored[:top_k]]
     except Exception as exc:
-        logger.warning(
-            f"Reranking failed ({exc}), returning documents as-is",
-        )
+        logger.warning("Cross-encoder reranking failed (%s), returning as-is", exc)
         return docs[:top_k]
 
 
@@ -679,12 +791,26 @@ async def ask(
     system_prompt: str | None = None,
     generator_model: str | None = None,
     reranker_model: str | None = None,
+    pipeline_mode: PipelineMode | None = None,
+    reranker_mode: RerankerMode | None = None,
+    max_chunks_per_doc: int | None = None,
 ) -> RAGResult:
     """Run the full RAG pipeline and return a structured result."""
     k = settings.retrieval_k
     fetch_k = settings.retrieval_fetch_k
     normalized_chat_history = _normalize_chat_history(chat_history)
     llm = get_llm(model_override=generator_model)
+    resolved_pipeline_mode: PipelineMode = (
+        pipeline_mode or settings.default_pipeline_mode
+    )
+    resolved_reranker_mode: RerankerMode = (
+        reranker_mode or settings.default_reranker_mode
+    )
+    resolved_max_chunks_per_doc = (
+        max_chunks_per_doc
+        if max_chunks_per_doc is not None
+        else max(1, int(settings.retrieval_max_chunks_per_doc))
+    )
     retrieval_query = query
     rewrite_applied = False
 
@@ -721,11 +847,32 @@ async def ask(
     # Retrieval from the separate news store and fusion with document candidates.
     news_docs: list[Document] = []
     if news_db is not None:
-        news_retriever = news_db.as_retriever(
-            search_type="mmr",
-            search_kwargs={"k": fetch_k, "fetch_k": fetch_k * 2},
-        )
-        news_docs = news_retriever.invoke(retrieval_query)
+        doc_dim = _faiss_index_dim(db)
+        news_dim = _faiss_index_dim(news_db)
+        if doc_dim is not None and news_dim is not None and doc_dim != news_dim:
+            key = (doc_dim, news_dim)
+            if key not in _NEWS_DIMENSION_WARNED:
+                logger.warning(
+                    "Skipping news retrieval because index/embedding dimensions do not match (%s vs %s).",
+                    doc_dim,
+                    news_dim,
+                )
+                _NEWS_DIMENSION_WARNED.add(key)
+        else:
+            news_retriever = news_db.as_retriever(
+                search_type="mmr",
+                search_kwargs={"k": fetch_k, "fetch_k": fetch_k * 2},
+            )
+            try:
+                news_docs = news_retriever.invoke(retrieval_query)
+            except AssertionError:
+                logger.warning(
+                    "Skipping news retrieval because index/embedding dimensions do not match."
+                )
+                news_docs = []
+            except Exception:
+                logger.exception("Skipping news retrieval due to retriever failure.")
+                news_docs = []
 
     if news_docs and docs:
         docs = _reciprocal_rank_fusion(
@@ -741,13 +888,25 @@ async def ask(
     else:
         docs = _dedupe_docs_by_source_page_snippet(docs)
 
+    if resolved_pipeline_mode == "enhanced_v2":
+        docs = _apply_doc_diversity_cap(
+            docs,
+            max_chunks_per_doc=resolved_max_chunks_per_doc,
+        )
+
     # Reranking
     rerank_query = retrieval_query if rewrite_applied else query
+    rerank_model = (
+        settings.reranker_cross_encoder_model
+        if resolved_reranker_mode == "cross_encoder"
+        else reranker_model
+    )
     docs = await _rerank(
         rerank_query,
         docs,
         top_k=k,
-        reranker_model=reranker_model,
+        reranker_model=rerank_model,
+        reranker_mode=resolved_reranker_mode,
     )
 
     # Generation
@@ -809,13 +968,25 @@ async def ask(
                 output = await _invoke_structured("json_mode")
 
         cited_sources = _build_cited_sources(output.cited_chunk_ids, context_items)
+        normalized_answer = _replace_inline_chunk_citations(output.answer, citation_map)
+        verification_passed: bool | None = None
+        guardrails_triggered: list[str] = []
+        if resolved_pipeline_mode == "enhanced_v2":
+            verification_passed, guardrails_triggered = _verify_answer_in_context(
+                query=query,
+                answer=normalized_answer,
+                context_items=context_items,
+            )
         return RAGResult(
-            answer=_replace_inline_chunk_citations(output.answer, citation_map),
+            answer=normalized_answer,
             sources=sources,
             model_used=model_name,
             reasoning=output.reasoning,
             confidence=output.confidence,
             cited_sources=cited_sources,
+            answer_mode="llm",
+            verification_passed=verification_passed,
+            guardrails_triggered=guardrails_triggered,
         )
     except Exception as exc:
         logger.warning(
@@ -830,9 +1001,21 @@ async def ask(
             }
         )
         fallback_citations = _build_cited_sources([], context_items)
+        normalized_answer = _replace_inline_chunk_citations(answer, citation_map)
+        verification_passed: bool | None = None
+        guardrails_triggered: list[str] = []
+        if resolved_pipeline_mode == "enhanced_v2":
+            verification_passed, guardrails_triggered = _verify_answer_in_context(
+                query=query,
+                answer=normalized_answer,
+                context_items=context_items,
+            )
         return RAGResult(
-            answer=_replace_inline_chunk_citations(answer, citation_map),
+            answer=normalized_answer,
             sources=sources,
             model_used=model_name,
             cited_sources=fallback_citations,
+            answer_mode="llm",
+            verification_passed=verification_passed,
+            guardrails_triggered=guardrails_triggered,
         )

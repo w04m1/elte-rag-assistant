@@ -8,14 +8,19 @@ The delivered system now includes:
 - Student-facing chat UI with citation-aware rendering and source links.
 - Student feedback controls on assistant responses (`Helpful` / `Not helpful`) stored by request ID.
 - Admin panel for runtime model/prompt control, document operations, sync/reindex jobs, and news indexing.
-- Hybrid retrieval pipeline (FAISS MMR + BM25 + RRF), optional LLM reranking, and structured response output.
+- Hybrid retrieval pipeline (FAISS MMR + BM25 + RRF), optional cross-encoder reranking, and structured response output.
 - Follow-up-aware retrieval resolution:
   - Heuristic follow-up detection.
   - Conditional standalone query rewrite from recent turns.
   - Citation carry-over from the latest assistant turn (max 2), merged and deduplicated before rerank.
   - No full-history vector retrieval.
+- Manual-only refresh operations for documents/news (no periodic background polling).
 - End-to-end usage logging (`data/runtime/usage_log.jsonl`) with analytics endpoints.
 - Reproducible evaluation runner producing JSON and Markdown artifacts.
+- Profile-isolated index snapshot system for embedding experiments without destructive overwrite.
+- Runtime-selectable pipeline/reranker/embedding profiles for controlled benchmarking.
+- Staged benchmark harness (`scripts/run_benchmarks.py`) with single-turn and multi-turn evaluation support.
+- Embedding-cost estimation utility (`scripts/estimate_embedding_cost.py`) for pre-run API spend planning.
 
 ## Verification Evidence
 Validation commands completed successfully:
@@ -51,3 +56,33 @@ The current system reliably returns non-empty and cited responses across the fix
 - High confidence on all evaluation prompts suggests calibration may need tightening for harder/ambiguous queries.
 - Follow-up detection is heuristic-based; future work can replace it with a lightweight classifier for better precision/recall trade-offs.
 - Admin authentication remains intentionally out of scope for the current milestone.
+
+## Benchmark Decision Log (New)
+- Baseline and enhanced pipeline logic are now both retained behind runtime flags.
+- Production defaults remain conservative until benchmark gates are met.
+- Winner selection criteria:
+  - No regression in grounding/citation quality.
+  - Latency improvement (or acceptable tolerance).
+  - Documented cost envelope for chosen embedding/reranker profile.
+
+## Reranker Ablation Outcome (March 29, 2026)
+Benchmark source:
+- `data/eval/benchmarks/benchmark_20260329_141148/benchmark_report.json`
+- `data/eval/benchmarks/benchmark_20260329_141148/benchmark_summary.md`
+
+Stage A evaluated `off`, `cross_encoder`, and `llm` rerankers.
+
+Average Stage A family score by reranker mode:
+- `off`: `0.6155`
+- `cross_encoder`: `0.4697`
+- `llm`: `0.4190`
+
+Best-configuration comparison (`enhanced_v2 + local_minilm` family):
+- Best `off`: score `0.6485`, single-turn latency `2817.93 ms`, multi-turn latency `4212.62 ms`
+- Best `llm`: score `0.5185`, single-turn latency `4399.99 ms`, multi-turn latency `5229.77 ms`
+- Delta (`off - llm`): `+0.1300` score, `-1582.06 ms` single-turn, `-1017.15 ms` multi-turn
+- LLM reranker overhead (best `llm` run): `67699` reranker input tokens
+
+Decision:
+- LLM reranking was kept during experimentation to validate the hypothesis.
+- Based on the above ablation, it was removed from runtime options as redundant for current student-policy corpus coverage.

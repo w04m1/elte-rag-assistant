@@ -1,0 +1,52 @@
+{
+  "scenarios": [
+    {
+      "id": "thesis_follow_up",
+      "history": [
+        {"role": "user", "text": "When is the thesis submission deadline?"},
+        {"role": "assistant", "text": "The thesis submission deadline is April 15th. [C1]"}
+      ],
+      "query": "What if I miss it?"
+    },
+    {
+      "id": "passive_semester_reference",
+      "history": [
+        {"role": "user", "text": "How do I request a passive semester?"},
+        {"role": "assistant", "text": "You need to submit the request through the proper university administration workflow. [C1]"}
+      ],
+      "query": "Can I do that after the deadline?"
+    },
+    {
+      "id": "exam_retake_follow_up",
+      "history": [
+        {"role": "user", "text": "What are the exam retake rules?"},
+        {"role": "assistant", "text": "Retake options are defined in the academic regulations and depend on the exam policy. [C1]"}
+      ],
+      "query": "And is there usually a fee?"
+    },
+    {
+      "id": "internship_context_carry",
+      "history": [
+        {"role": "user", "text": "What are the internship requirements?"},
+        {"role": "assistant", "text": "Internship completion is mandatory before graduation in the relevant curriculum. [C2]"}
+      ],
+      "query": "Does this apply to MSc as well?"
+    },
+    {
+      "id": "erasmus_follow_up",
+      "history": [
+        {"role": "user", "text": "How can I apply for Erasmus?"},
+        {"role": "assistant", "text": "Application details are published by the faculty and international office channels. [C3]"}
+      ],
+      "query": "Who should I contact first?"
+    },
+    {
+      "id": "news_follow_up",
+      "history": [
+        {"role": "user", "text": "Any recent student opportunity announcements?"},
+        {"role": "assistant", "text": "Yes, there are recent faculty news updates about opportunities. [C1]"}
+      ],
+      "query": "What about deadlines in those?"
+    }
+  ]
+}

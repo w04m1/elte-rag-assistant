@@ -77,9 +77,12 @@ def client_no_db(tmp_path):
         mock_settings.embedding_provider = "local"
         mock_settings.embedding_model_name = "all-MiniLM-L6-v2"
         mock_settings.faiss_index_path = "/nonexistent/path"
+        mock_settings.index_snapshots_root_path = str(tmp_path / "indexes")
+        mock_settings.active_index_state_path = str(tmp_path / "active-indexes.json")
         mock_settings.runtime_settings_path = str(tmp_path / "runtime-settings.json")
         mock_settings.usage_log_path = str(tmp_path / "usage-log.jsonl")
         mock_settings.retrieval_hybrid = False
+        mock_settings.retrieval_max_chunks_per_doc = 3
         mock_settings.cors_allow_origins = "*"
         mock_settings.raw_data_path = str(tmp_path / "raw")
         mock_settings.documents_sync_state_path = str(tmp_path / "documents-sync-state.json")
@@ -89,6 +92,11 @@ def client_no_db(tmp_path):
         mock_settings.openrouter_model = "generator"
         mock_settings.reranker_model = "reranker"
         mock_settings.openrouter_embedding_model = "embedding"
+        mock_settings.default_embedding_profile = "local_minilm"
+        mock_settings.default_pipeline_mode = "baseline_v1"
+        mock_settings.default_reranker_mode = "off"
+        mock_settings.default_chunk_profile = "standard"
+        mock_settings.default_parser_profile = "docling_v1"
         mock_settings.ollama_model = "ollama"
         mock_get_embeddings.return_value = MagicMock()
         with TestClient(app, raise_server_exceptions=False) as c:
@@ -319,16 +327,34 @@ class TestAdminSettingsEndpoint:
         data = resp.json()
         assert "generator_model" in data
         assert "reranker_model" in data
+        assert "embedding_profile" in data
+        assert "pipeline_mode" in data
+        assert "reranker_mode" in data
 
     def test_update_settings(self, client):
         resp = client.put(
             "/admin/settings",
-            json={"generator_model": "demo-generator", "system_prompt": "Demo prompt"},
+            json={
+                "generator_model": "demo-generator",
+                "system_prompt": "Demo prompt",
+                "pipeline_mode": "enhanced_v2",
+                "reranker_mode": "off",
+            },
         )
         assert resp.status_code == 200
         data = resp.json()
         assert data["generator_model"] == "demo-generator"
         assert data["system_prompt"] == "Demo prompt"
+        assert data["pipeline_mode"] == "enhanced_v2"
+        assert data["reranker_mode"] == "off"
+
+    def test_get_active_index(self, client):
+        resp = client.get("/admin/indexes/active")
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert "embedding_profile" in payload
+        assert "index_path" in payload
+        assert "from_snapshot" in payload
 
 
 class TestAdminDocumentsEndpoint:
