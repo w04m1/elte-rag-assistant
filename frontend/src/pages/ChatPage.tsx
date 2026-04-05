@@ -7,25 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { API_BASE_URL, askQuestion, submitFeedback } from "@/lib/api";
+import {
+  buildCitationSourceUrl,
+  buildHistoryForRequest,
+  type ChatMessage,
+  createWelcomeMessage,
+  formatPublishedAt,
+  normalizeInlineCitations,
+} from "@/lib/chat-core";
 import { cn } from "@/lib/utils";
-import type { ChatHistoryTurn, CitedSourceItem } from "@/types/api";
-
-type ChatMessage = {
-  id: string;
-  role: "user" | "assistant";
-  text: string;
-  confidence?: string;
-  reasoning?: string;
-  citedSources?: CitedSourceItem[];
-  requestId?: string;
-  feedback?: boolean | null;
-};
-
-const welcomeMessage: ChatMessage = {
-  id: "welcome",
-  role: "assistant",
-  text: "Hi! Ask me about ELTE regulations, deadlines, and procedures. I will answer from indexed university sources.",
-};
+const welcomeMessage = createWelcomeMessage();
 
 const CHAT_STORAGE_KEY = "elte-rag-assistant/chat-v1";
 
@@ -34,139 +25,6 @@ function markdownUrlTransform(url: string): string {
     return url;
   }
   return defaultUrlTransform(url);
-}
-
-function isExternalUrl(source: string): boolean {
-  return /^https?:\/\//i.test(source);
-}
-
-function localSourceExtension(source: string): ".pdf" | ".doc" | ".docx" | null {
-  const lowerSource = source.toLowerCase();
-  if (lowerSource.endsWith(".pdf")) {
-    return ".pdf";
-  }
-  if (lowerSource.endsWith(".docx")) {
-    return ".docx";
-  }
-  if (lowerSource.endsWith(".doc")) {
-    return ".doc";
-  }
-  return null;
-}
-
-function buildCitationSourceUrl(citation: CitedSourceItem): string | null {
-  const source = citation.source?.trim();
-  if (!source) {
-    return null;
-  }
-  const sourceType = citation.source_type ?? "pdf";
-
-  const pageFragment = citation.page ? `#page=${citation.page}` : "";
-
-  if (isExternalUrl(source)) {
-    if (citation.page && source.toLowerCase().endsWith(".pdf") && !source.includes("#")) {
-      return `${source}${pageFragment}`;
-    }
-    return source;
-  }
-
-  const extension = localSourceExtension(source);
-  if (extension) {
-    const pageSuffix = extension === ".pdf" ? pageFragment : "";
-    return `${API_BASE_URL}/files/${encodeURIComponent(source)}${pageSuffix}`;
-  }
-
-  if (sourceType === "news" && source.startsWith("/")) {
-    return `https://www.inf.elte.hu${source}`;
-  }
-
-  return null;
-}
-
-function formatPublishedAt(value: string | null | undefined): string | null {
-  if (!value) {
-    return null;
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return parsed.toLocaleDateString();
-}
-
-function normalizeCitationText(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-function citationMarker(citationId: string): string {
-  return citationId.toUpperCase().startsWith("C") ? citationId.slice(1) : citationId;
-}
-
-function normalizeInlineCitations(
-  text: string,
-  citedSources: CitedSourceItem[] | undefined,
-): string {
-  if (!citedSources?.length) {
-    return text;
-  }
-
-  const citationsById = new Map<string, CitedSourceItem>();
-  const docPageMap = new Map<string, string>();
-  const docOnlyMap = new Map<string, Set<string>>();
-
-  for (const source of citedSources) {
-    const citationId = source.citation_id?.toUpperCase();
-    if (!citationId) {
-      continue;
-    }
-    citationsById.set(citationId, source);
-
-    const document = source.document?.trim();
-    if (!document) {
-      continue;
-    }
-
-    const docNormalized = normalizeCitationText(document);
-    if (!docOnlyMap.has(docNormalized)) {
-      docOnlyMap.set(docNormalized, new Set<string>());
-    }
-    docOnlyMap.get(docNormalized)?.add(citationId);
-
-    if (source.page) {
-      docPageMap.set(`${docNormalized}::${source.page}`, citationId);
-    }
-  }
-
-  const withChunkIds = text.replace(/\[([Cc]\d+)\]/g, (match, rawCitationId: string) => {
-    const citationId = rawCitationId.toUpperCase();
-    if (!citationsById.has(citationId)) {
-      return match;
-    }
-    return `[${citationMarker(citationId)}](cite:${citationId})`;
-  });
-
-  return withChunkIds.replace(/\[([^\[\]\n]+)\](?!\()/g, (match, rawReference: string) => {
-    const reference = rawReference.trim();
-    const parsed = reference.match(/^(.*?),\s*p\.?\s*(\d+)\s*$/i);
-    if (parsed) {
-      const document = normalizeCitationText(parsed[1] ?? "");
-      const page = Number.parseInt(parsed[2] ?? "", 10);
-      const citationId = docPageMap.get(`${document}::${page}`);
-      if (citationId) {
-        return `[${citationMarker(citationId)}](cite:${citationId})`;
-      }
-    }
-
-    const docOnlyCandidates = docOnlyMap.get(normalizeCitationText(reference));
-    if (docOnlyCandidates && docOnlyCandidates.size === 1) {
-      const citationId = Array.from(docOnlyCandidates)[0];
-      return `[${citationMarker(citationId)}](cite:${citationId})`;
-    }
-
-    return match;
-  });
 }
 
 export function ChatPage() {
@@ -252,18 +110,7 @@ export function ChatPage() {
     setIsSending(true);
 
     try {
-      const historyForRequest: ChatHistoryTurn[] = messages
-        .filter((message) => message.id !== welcomeMessage.id)
-        .map((message) => {
-          const historyTurn: ChatHistoryTurn = {
-            role: message.role,
-            text: message.text,
-          };
-          if (message.role === "assistant" && message.citedSources?.length) {
-            historyTurn.cited_sources = message.citedSources;
-          }
-          return historyTurn;
-        });
+      const historyForRequest = buildHistoryForRequest(messages);
 
       const response = await askQuestion(prompt, historyForRequest);
       const assistantMessage: ChatMessage = {
@@ -442,7 +289,7 @@ export function ChatPage() {
                       (() => {
                         const citationId = source.citation_id || `C${index + 1}`;
                         const citationKey = `${message.id}:${citationId}`;
-                        const sourceUrl = buildCitationSourceUrl(source);
+                        const sourceUrl = buildCitationSourceUrl(source, API_BASE_URL);
                         const isHighlighted = highlightedCitationKey === citationKey;
                         const sourceType = source.source_type ?? "pdf";
                         const publishedAt = formatPublishedAt(source.published_at);
