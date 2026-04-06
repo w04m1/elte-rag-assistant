@@ -1,0 +1,14 @@
+{
+  "snapshot_id": "65d3de6d8a47686b__openai_small__standard__docling_v1",
+  "built_at_utc": "2026-04-05T20:32:41.742935+00:00",
+  "corpus_hash": "65d3de6d8a47686b",
+  "embedding_profile": "openai_small",
+  "embedding_provider": "openrouter",
+  "embedding_model": "openai/text-embedding-3-small",
+  "chunk_profile": "standard",
+  "parser_profile": "docling_v1",
+  "max_tokens": 256,
+  "source_count": 233,
+  "chunk_count": 10089,
+  "output_dir": "data/indexes/65d3de6d8a47686b__openai_small__standard__docling_v1"
+}
