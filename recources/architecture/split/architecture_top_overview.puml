@@ -1,0 +1,22 @@
+@startuml
+!theme plain
+left to right direction
+skinparam backgroundColor #FEFEF8
+skinparam componentStyle rectangle
+skinparam rectangleBackgroundColor #F0F0F0
+skinparam rectangleBorderColor #333333
+
+rectangle "Preprocessing and Indexing\n(Manual Jobs)" as preprocessing #E8F4F8
+rectangle "Runtime Pipeline\n(Query-Response)" as runtime #F8E8F4
+rectangle "Admin and Management" as admin #F4F8E8
+rectangle "Evaluation and Benchmarking V2" as evaluation #E8F8E8
+rectangle "Prompt Engineering" as prompt #FFF8E8
+
+admin --> preprocessing : trigger sync / reindex
+admin --> runtime : update runtime settings\nview usage
+preprocessing --> runtime : active snapshots\nnews vectors
+prompt --> runtime : prompt blocks and schema
+evaluation --> runtime : benchmark requests\n(POST /ask)
+runtime --> admin : usage and status data
+
+@enduml

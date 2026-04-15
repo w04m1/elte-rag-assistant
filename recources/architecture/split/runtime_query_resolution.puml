@@ -1,0 +1,74 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEF8
+skinparam classBackgroundColor #F0F0F0
+skinparam classBorderColor #333333
+skinparam stereotypeCBackgroundColor #D3D3D3
+
+package "Runtime Query Resolution" #F8E8F4 {
+    [Student User] as user
+    [React Frontend] as frontend
+    [FastAPI Backend] as backend
+    [Follow-Up Detector] as followup
+    [Query Rewriter\n(last 6 turns)] as rewriter
+    [Effective Retrieval Query] as retrieval_q
+    [Query Embedding\n(active profile)] as query_embed
+
+    package "Candidate Retrieval" #F0E0F0 {
+        [FAISS Retriever\n(MMR)] as faiss_ret
+        [BM25 Retriever] as bm25_ret
+        [RRF Fusion] as rrf_docs
+        [News FAISS Retriever\n(MMR)] as news_ret
+    }
+
+    [Carry-Over Injector\n(max 2 cited sources)] as carry_over
+    [Merge + Dedup\n(source + page + snippet)] as merge_dedup
+    [Pipeline Mode Switch\nbaseline_v1 | enhanced_v2] as pipeline_mode
+    [Doc Diversity Cap\n(enhanced_v2)] as diversity_cap
+    [Reranker Mode Switch\noff | cross_encoder | llm] as reranker_mode
+    [Cross-Encoder Reranker] as cross_reranker
+    [LLM Reranker] as llm_reranker
+    [Final Ranked Context] as final_context
+
+    user --> frontend: asks question
+    frontend --> backend: query + history + cited_sources
+
+    backend --> followup: classify follow-up
+    followup --> rewriter: likely follow-up
+    followup --> retrieval_q: standalone query
+    rewriter --> retrieval_q: rewritten query
+
+    retrieval_q --> query_embed
+    query_embed --> faiss_ret
+    retrieval_q --> bm25_ret
+    query_embed --> news_ret
+
+    faiss_ret --> rrf_docs
+    bm25_ret --> rrf_docs
+
+    backend --> carry_over
+    carry_over --> merge_dedup
+    rrf_docs --> merge_dedup
+    news_ret --> merge_dedup
+
+    merge_dedup --> pipeline_mode
+    pipeline_mode --> diversity_cap: enhanced_v2
+    pipeline_mode --> reranker_mode: baseline_v1
+    diversity_cap --> reranker_mode
+
+    reranker_mode --> final_context: off
+    reranker_mode --> cross_reranker: cross_encoder
+    reranker_mode --> llm_reranker: llm
+    cross_reranker --> final_context
+    llm_reranker --> final_context
+}
+
+[Document Snapshot Store] as doc_snapshot_store
+[News Vector Store] as news_vector_db
+[Answer Generation Subsystem] as answer_generation
+
+doc_snapshot_store -.-> faiss_ret: active snapshot
+news_vector_db -.-> news_ret: news index
+final_context --> answer_generation: ranked context
+
+@enduml

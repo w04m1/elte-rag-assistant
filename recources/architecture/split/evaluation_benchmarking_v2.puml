@@ -1,0 +1,36 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEF8
+skinparam classBackgroundColor #F0F0F0
+skinparam classBorderColor #333333
+skinparam stereotypeCBackgroundColor #D3D3D3
+
+package "Evaluation and Benchmarking V2" #E8F8E8 {
+    [Question Sets\n(single_turn + multi_turn)] as eval_questions
+    [Benchmark Runner\n(scripts/run_benchmarks.py)] as bench_runner
+    [Async Request Runner\n(retries, backoff, adaptive concurrency)] as async_runner
+    [Quality V2 Scorer\n(deterministic gold primary,\nLLM judge fallback,\nheuristic fallback)] as quality_scorer
+    [Balanced Gates\n(quality + latency + cost + transport)] as gates
+    [Bootstrap CI\n(paired 95% intervals)] as bootstrap_ci
+    [Evaluation Artifacts\nlatest_metrics.json,\nbenchmark_report.json,\nbenchmark_summary.md] as eval_output
+
+    eval_questions --> bench_runner: fixed benchmark matrix
+    bench_runner --> async_runner: stage A/B config runs
+    async_runner --> quality_scorer: response rows
+    quality_scorer --> gates: gate evaluation input
+    quality_scorer --> bootstrap_ci: metric rows
+    gates --> eval_output: pass/fail summary
+    bootstrap_ci --> eval_output: confidence intervals
+    quality_scorer --> eval_output: quality and coverage metrics
+}
+
+[Runtime Backend\nPOST /ask] as backend
+
+async_runner --> backend: query execution
+
+note right of quality_scorer
+    April 6, 2026 solid-gold matrix:
+    18 configs (3 embeddings x 2 pipelines x 3 rerankers).
+    Deterministic gold scoring was primary.
+end note
+@enduml

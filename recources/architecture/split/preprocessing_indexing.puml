@@ -1,0 +1,47 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEF8
+skinparam classBackgroundColor #F0F0F0
+skinparam classBorderColor #333333
+skinparam stereotypeCBackgroundColor #D3D3D3
+
+package "Preprocessing and Indexing (Manual Jobs)" #E8F4F8 {
+    [Policy Documents\n(.pdf/.doc/.docx)] as docs
+    [Document Sync Job\n(manual trigger)] as doc_sync
+    [Docling DocumentConverter\n(PyPdfium2 backend)] as ingest
+    [HybridChunker\n(Docling, token-aware)] as chunk
+    [Embedding Profile Resolver\n(local_minilm | openai_small | openai_large)] as embed_profile
+    [Embedding Providers\nLocal SentenceTransformers\nor OpenRouter OpenAI embeddings] as embed_provider
+    [Snapshot Builder\n(corpus hash + profiles)] as snapshot_builder
+    [Document Snapshot Store\n(FAISS + manifest,\ndata/indexes/{snapshot-id})] as doc_snapshot_store
+    [Active Snapshot Map\n(data/runtime/active_indexes.json)] as active_indexes
+
+    [ELTE IK News Feed] as news_feed
+    [News Normalizer + Embedder\n(JSON records)] as news_norm
+    [News Vector Store\n(FAISS, data/news_vector_store)] as news_vector_db
+
+    docs --> doc_sync: explicit sync
+    doc_sync --> ingest: extract text & tables
+    ingest --> chunk: split into chunks\n(max_tokens=256, merge_peers)
+    chunk --> embed_profile: resolve runtime embedding profile
+    embed_profile --> embed_provider: provider + model
+    embed_provider --> snapshot_builder: vectorize chunks
+    snapshot_builder --> doc_snapshot_store: write FAISS index + manifest
+    snapshot_builder --> active_indexes: update active snapshot pointer
+
+    news_feed --> news_norm: fetch + normalize
+    embed_provider --> news_norm: shared embedding backend
+    news_norm --> news_vector_db: store news embeddings
+}
+
+[Admin Management Layer] as admin_layer
+[Runtime Retrieval Layer] as runtime_layer
+
+admin_layer --> doc_sync: trigger documents sync
+admin_layer --> snapshot_builder: trigger reindex
+admin_layer --> news_norm: trigger news sync/bootstrap
+doc_snapshot_store --> runtime_layer: active FAISS snapshot
+active_indexes --> runtime_layer: profile->snapshot pointer
+news_vector_db --> runtime_layer: news FAISS index
+
+@enduml

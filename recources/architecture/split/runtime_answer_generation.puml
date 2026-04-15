@@ -1,0 +1,56 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEF8
+skinparam classBackgroundColor #F0F0F0
+skinparam classBorderColor #333333
+skinparam stereotypeCBackgroundColor #D3D3D3
+
+package "Runtime Answer Generation" #F8E8F4 {
+    [FastAPI Backend] as backend
+    [Runtime Settings Store\n(data/runtime/settings.json)] as settings_store
+    [Temporal Context Composer\ncurrent_date, weekday, current_term] as temporal_ctx
+    [Prompt Builder\nsystem + few-shot + schema] as prompt_builder
+    [LLM Generator\n(OpenRouter or Ollama)] as llm
+    [Structured Output Parser\nRAGOutput] as parser
+    [Inline Citation Mapper\nchunk marker -> cite:ID] as citation_mapper
+    [Post-Answer Verification\n(enhanced_v2)] as verifier
+    [RAGResult Response\nanswer, confidence, cited_sources] as response
+    [React Frontend] as frontend
+    [Student User] as user
+
+    [Final Ranked Context] as final_context
+    [Conversation History] as history
+    [Original Query] as query
+
+    backend --> settings_store: load runtime config
+    settings_store --> temporal_ctx: compose temporal block
+
+    temporal_ctx --> prompt_builder
+    final_context --> prompt_builder
+    history --> prompt_builder
+    query --> prompt_builder
+
+    prompt_builder --> llm: invoke generation
+    llm --> parser: structured output
+    parser --> citation_mapper: normalize citations
+    citation_mapper --> verifier: enhanced checks
+    verifier --> response: verified or fallback
+    response --> backend
+    backend --> frontend
+    frontend --> user
+}
+
+[Prompt Engineering Package] as prompt_pkg
+[Query Resolution Subsystem] as query_resolution
+
+prompt_pkg --> prompt_builder: prompt contracts
+query_resolution --> final_context: ranked context handoff
+
+note right of temporal_ctx
+    Timezone: Europe/Budapest
+    Term rule:
+    Aug 1-Jan 20 => Autumn/Fall/1st
+    else Spring/2nd
+end note
+
+@enduml

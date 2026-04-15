@@ -1,0 +1,108 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEF8
+skinparam classBackgroundColor #F0F0F0
+skinparam classBorderColor #333333
+skinparam stereotypeCBackgroundColor #D3D3D3
+
+package "Runtime Pipeline (Query-Response)" #F8E8F4 {
+    [Student User] as user
+    [React Frontend\n(+ Chrome extension widget)] as frontend
+    [FastAPI Backend\n(http://localhost:8001)] as backend
+    [Runtime Settings Store\n(data/runtime/settings.json)] as settings_store
+    [Temporal Prompt Context Composer\ncurrent_date, weekday, current_term] as temporal_ctx
+    [Follow-Up Detector\n(short/referential + history)] as followup
+    [Query Rewriter\n(conditional, last 6 turns)] as rewriter
+    [Effective Retrieval Query] as retrieval_q
+    [Query Embedding\n(active profile)] as query_embed
+
+    package "Candidate Retrieval" #F0E0F0 {
+        [FAISS Retriever\n(MMR search)] as faiss_ret
+        [BM25 Retriever\n(keyword search)] as bm25_ret
+        [Document Fusion\n(RRF)] as rrf_docs
+        [News FAISS Retriever\n(MMR search)] as news_ret
+    }
+
+    [Carry-Over Injector\n(latest assistant cited sources,\nmax 2)] as carry_over
+    [Candidate Merge + Dedup\n(source + page + snippet)] as merge_dedup
+    [Pipeline Mode Switch\n(baseline_v1 | enhanced_v2)] as pipeline_mode
+    [Doc Diversity Cap\n(max_chunks_per_doc)] as diversity_cap
+    [Reranker Mode Switch\n(off | cross_encoder | llm)] as reranker_mode
+    [Cross-Encoder Reranker\n(cross-encoder/ms-marco-MiniLM-L-6-v2)] as cross_reranker
+    [LLM Reranker\n(prompt scoring with parse fallback)] as llm_reranker
+    [Final Ranked Context] as final_context
+    [LLM Generator\n(OpenRouter or Ollama)] as llm
+    [Post-Answer Verification\n(enhanced_v2 only)] as verifier
+    [Structured Output\n(answer, reasoning,\nconfidence, citations)] as response
+
+    user --> frontend: asks question
+    frontend --> backend: send query + history\n+ optional assistant cited_sources
+
+    backend --> settings_store: load runtime profile config
+    settings_store --> temporal_ctx: build temporal prompt block
+
+    backend --> followup: evaluate follow-up likelihood
+    followup --> rewriter: likely follow-up
+    followup --> retrieval_q: standalone query not needed
+    rewriter --> retrieval_q: rewritten standalone query
+
+    retrieval_q --> query_embed: embed retrieval query
+    query_embed --> faiss_ret: similarity search (MMR)
+    retrieval_q --> bm25_ret: keyword search
+    query_embed --> news_ret: similarity search (MMR)
+
+    faiss_ret --> rrf_docs: ranked candidates
+    bm25_ret --> rrf_docs: ranked candidates
+
+    backend --> carry_over: extract latest assistant citations
+    carry_over --> merge_dedup: inject carry-over docs
+    rrf_docs --> merge_dedup: document candidates
+    news_ret --> merge_dedup: news candidates
+
+    merge_dedup --> pipeline_mode: candidate pool
+    pipeline_mode --> diversity_cap: enhanced_v2 path
+    pipeline_mode --> reranker_mode: baseline_v1 path
+    diversity_cap --> reranker_mode: capped candidates
+
+    reranker_mode --> final_context: off (passthrough)
+    reranker_mode --> cross_reranker: cross_encoder
+    reranker_mode --> llm_reranker: llm
+    cross_reranker --> final_context
+    llm_reranker --> final_context
+
+    temporal_ctx --> llm: inject runtime temporal context
+    final_context --> llm: context + query + chat history
+    llm --> response: baseline_v1 direct
+    llm --> verifier: enhanced_v2 checks
+    verifier --> response: verified or fallback answer
+    response --> backend: RAGResult
+    backend --> frontend: JSON response
+    frontend --> user: display answer + sources
+}
+
+[Document Snapshot Store] as doc_snapshot_store
+[News Vector Store] as news_vector_db
+[Prompt Engineering Package] as prompt_pkg
+
+doc_snapshot_store -.-> faiss_ret: active FAISS snapshot
+news_vector_db -.-> news_ret: shared index
+prompt_pkg --> temporal_ctx: temporal contract
+prompt_pkg --> rewriter: rewrite prompt
+prompt_pkg --> llm_reranker: rerank prompt
+prompt_pkg --> llm: system prompt + few-shot + schema
+
+note right of backend
+    Backend is stateless per request.
+    Chat history is provided by frontend.
+    No full-history vector retrieval.
+    Health check endpoint: /health
+    Default local URL: http://localhost:8001
+end note
+
+note right of reranker_mode
+    Runtime-selectable modes:
+    off (default), cross_encoder, llm.
+    llm mode keeps passthrough fallback
+    when scoring output is invalid.
+end note
+@enduml

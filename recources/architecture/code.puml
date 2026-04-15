@@ -5,35 +5,45 @@ skinparam classBackgroundColor #F0F0F0
 skinparam classBorderColor #333333
 skinparam stereotypeCBackgroundColor #D3D3D3
 
-package "Preprocessing Pipeline (Batch)" #E8F4F8 {
+package "Preprocessing and Indexing (Manual Jobs)" #E8F4F8 {
     [Policy Documents\n(.pdf/.doc/.docx)] as docs
+    [Document Sync Job\n(manual trigger)] as doc_sync
     [Docling DocumentConverter\n(PyPdfium2 backend)] as ingest
     [HybridChunker\n(Docling, token-aware)] as chunk
-    [Embedding Model\n(all-mpnet-base-v2)] as embed_model
-    [Document Vector Store (FAISS)] as doc_vector_db
+    [Embedding Profile Resolver\n(local_minilm | openai_small | openai_large)] as embed_profile
+    [Embedding Providers\nLocal SentenceTransformers\nor OpenRouter OpenAI embeddings] as embed_provider
+    [Snapshot Builder\n(corpus hash + profiles)] as snapshot_builder
+    [Document Snapshot Store\n(FAISS + manifest,\ndata/indexes/{snapshot-id})] as doc_snapshot_store
+    [Active Snapshot Map\n(data/runtime/active_indexes.json)] as active_indexes
 
     [ELTE IK News Feed] as news_feed
-    [News Normalizer\n(JSON records)] as news_norm
-    [News Vector Store (FAISS)] as news_vector_db
+    [News Normalizer + Embedder\n(JSON records)] as news_norm
+    [News Vector Store\n(FAISS, data/news_vector_store)] as news_vector_db
 
-    docs --> ingest: extract text & tables
+    docs --> doc_sync: explicit sync
+    doc_sync --> ingest: extract text & tables
     ingest --> chunk: split into chunks\n(max_tokens=256, merge_peers)
-    chunk --> embed_model: vectorize chunks
-    embed_model --> doc_vector_db: store document embeddings
+    chunk --> embed_profile: resolve runtime embedding profile
+    embed_profile --> embed_provider: provider + model
+    embed_provider --> snapshot_builder: vectorize chunks
+    snapshot_builder --> doc_snapshot_store: write FAISS index + manifest
+    snapshot_builder --> active_indexes: update active snapshot pointer
 
     news_feed --> news_norm: fetch + normalize
-    news_norm --> embed_model: vectorize news chunks
-    embed_model --> news_vector_db: store news embeddings
+    embed_provider --> news_norm: shared embedding backend
+    news_norm --> news_vector_db: store news embeddings
 }
 
 package "Runtime Pipeline (Query-Response)" #F8E8F4 {
     [Student User] as user
-    [React Frontend] as frontend
-    [FastAPI Backend] as backend
+    [React Frontend\n(+ Chrome extension widget)] as frontend
+    [FastAPI Backend\n(http://localhost:8001)] as backend
+    [Runtime Settings Store\n(data/runtime/settings.json)] as settings_store
+    [Temporal Prompt Context Composer\ncurrent_date, weekday, current_term] as temporal_ctx
     [Follow-Up Detector\n(short/referential + history)] as followup
     [Query Rewriter\n(conditional, last 6 turns)] as rewriter
     [Effective Retrieval Query] as retrieval_q
-    [Query Embedding\n(all-mpnet-base-v2)] as query_embed
+    [Query Embedding\n(active profile)] as query_embed
 
     package "Candidate Retrieval" #F0E0F0 {
         [FAISS Retriever\n(MMR search)] as faiss_ret
@@ -44,12 +54,21 @@ package "Runtime Pipeline (Query-Response)" #F8E8F4 {
 
     [Carry-Over Injector\n(latest assistant cited sources,\nmax 2)] as carry_over
     [Candidate Merge + Dedup\n(source + page + snippet)] as merge_dedup
-    [LLM Reranker\n(Gemini Flash)] as reranker
-    [LLM Generator\n(Gemini Flash / Llama 3.1)\nvia OpenRouter or Ollama] as llm
+    [Pipeline Mode Switch\n(baseline_v1 | enhanced_v2)] as pipeline_mode
+    [Doc Diversity Cap\n(max_chunks_per_doc)] as diversity_cap
+    [Reranker Mode Switch\n(off | cross_encoder | llm)] as reranker_mode
+    [Cross-Encoder Reranker\n(cross-encoder/ms-marco-MiniLM-L-6-v2)] as cross_reranker
+    [LLM Reranker\n(prompt scoring with parse fallback)] as llm_reranker
+    [Final Ranked Context] as final_context
+    [LLM Generator\n(OpenRouter or Ollama)] as llm
+    [Post-Answer Verification\n(enhanced_v2 only)] as verifier
     [Structured Output\n(answer, reasoning,\nconfidence, citations)] as response
 
     user --> frontend: asks question
     frontend --> backend: send query + history\n+ optional assistant cited_sources
+
+    backend --> settings_store: load runtime profile config
+    settings_store --> temporal_ctx: build temporal prompt block
 
     backend --> followup: evaluate follow-up likelihood
     followup --> rewriter: likely follow-up
@@ -69,9 +88,22 @@ package "Runtime Pipeline (Query-Response)" #F8E8F4 {
     rrf_docs --> merge_dedup: document candidates
     news_ret --> merge_dedup: news candidates
 
-    merge_dedup --> reranker: merged candidate pool
-    reranker --> llm: reranked context\n+ original query + chat history
-    llm --> response: structured JSON
+    merge_dedup --> pipeline_mode: candidate pool
+    pipeline_mode --> diversity_cap: enhanced_v2 path
+    pipeline_mode --> reranker_mode: baseline_v1 path
+    diversity_cap --> reranker_mode: capped candidates
+
+    reranker_mode --> final_context: off (passthrough)
+    reranker_mode --> cross_reranker: cross_encoder
+    reranker_mode --> llm_reranker: llm
+    cross_reranker --> final_context
+    llm_reranker --> final_context
+
+    temporal_ctx --> llm: inject runtime temporal context
+    final_context --> llm: context + query + chat history
+    llm --> response: baseline_v1 direct
+    llm --> verifier: enhanced_v2 checks
+    verifier --> response: verified or fallback answer
     response --> backend: RAGResult
     backend --> frontend: JSON response
     frontend --> user: display answer + sources
@@ -80,45 +112,66 @@ package "Runtime Pipeline (Query-Response)" #F8E8F4 {
 package "Admin & Management" #F4F8E8 {
     [Admin Panel\n(React/FastAPI)] as admin
     [Document Manager] as doc_mgr
-    [Runtime Settings Store] as settings_store
     [Usage Logger\n(JSONL in data/runtime)] as logger
+    [News Job Controller\n(bootstrap/sync, manual)] as news_jobs
+    [Reindex Job\n(manual trigger)] as reindex_job
 
     admin --> settings_store: update model/prompt settings
     admin --> doc_mgr: upload/delete docs,\ntrigger sync/reindex
-    doc_mgr --> ingest: trigger reindexing
+    doc_mgr --> doc_sync: trigger document sync
+    doc_mgr --> reindex_job: trigger reindex
+    reindex_job --> snapshot_builder: rebuild active snapshot
+    admin --> news_jobs: trigger news bootstrap/sync
+    news_jobs --> news_norm: run pipeline manually
     admin --> logger: view usage overview\nand recent queries
     backend --> logger: log all /ask requests
 }
 
-package "Evaluation Pipeline" #E8F8E8 {
-    [Question Set\n(data/eval/questions.json)] as eval_questions
-    [Evaluation Runner\n(scripts/run_evaluation.py)] as eval_runner
-    [Metrics Artifacts\n(data/eval/latest_metrics.json\n+ docs/thesis/evaluation.md)] as eval_output
+package "Evaluation and Benchmarking V2" #E8F8E8 {
+    [Question Sets\n(single_turn + multi_turn)] as eval_questions
+    [Benchmark Runner\n(scripts/run_benchmarks.py)] as bench_runner
+    [Async Request Runner\n(retries, backoff, adaptive concurrency)] as async_runner
+    [Quality V2 Scorer\n(deterministic gold primary,\nLLM judge fallback,\nheuristic fallback)] as quality_scorer
+    [Balanced Gates\n(quality + latency + cost + transport)] as gates
+    [Bootstrap CI\n(paired 95% intervals)] as bootstrap_ci
+    [Evaluation Artifacts\nlatest_metrics.json,\nbenchmark_report.json,\nbenchmark_summary.md] as eval_output
 
-    eval_questions --> eval_runner: fixed QA prompts
-    eval_runner --> backend: POST /ask
-    eval_runner --> eval_output: write metrics and report
+    eval_questions --> bench_runner: fixed benchmark matrix
+    bench_runner --> async_runner: stage A/B config runs
+    async_runner --> backend: POST /ask
+    async_runner --> quality_scorer: response rows
+    quality_scorer --> gates: gate evaluation input
+    quality_scorer --> bootstrap_ci: metric rows
+    gates --> eval_output: pass/fail summary
+    bootstrap_ci --> eval_output: confidence intervals
+    quality_scorer --> eval_output: quality and coverage metrics
 }
 
 package "Prompt Engineering" #FFF8E8 {
     [System Prompt\n(role + rules)] as sys_prompt
     [Few-Shot Examples\n(2 Q&A pairs)] as few_shot
     [Follow-Up Rewrite Prompt] as rewrite_prompt
+    [Rerank Prompt\n(score-list JSON)] as rerank_prompt
+    [Temporal Prompt Contract\n- current_date\n- weekday\n- current_term\nTZ: Europe/Budapest\nTerm rule: Aug 1-Jan 20 => Autumn/Fall/1st,\nelse Spring/2nd] as temporal_contract
     [Structured Output Schema\n(RAGOutput: reasoning,\nanswer, confidence,\ncited_sources)] as schema
 
     sys_prompt --> llm
     few_shot --> llm
     schema --> llm
     rewrite_prompt --> rewriter
+    rerank_prompt --> llm_reranker
+    temporal_contract --> temporal_ctx
 }
 
-doc_vector_db -.-> faiss_ret: shared index
+doc_snapshot_store -.-> faiss_ret: active FAISS snapshot
 news_vector_db -.-> news_ret: shared index
 
 note right of backend
     Backend is stateless per request.
     Chat history is provided by frontend.
     No full-history vector retrieval.
+    Health check endpoint: /health
+    Default local URL: http://localhost:8001
 end note
 
 note right of merge_dedup
@@ -127,16 +180,16 @@ note right of merge_dedup
     maximum 2 cited sources.
 end note
 
-note right of llm
-    OpenRouter (API) or Ollama (local)
-    Configurable per deployment
-    Structured output with
-    plain-string fallback
+note right of reranker_mode
+    Runtime-selectable modes:
+    off (default), cross_encoder, llm.
+    llm mode keeps passthrough fallback
+    when scoring output is invalid.
 end note
 
-note right of reranker
-    LLM-based relevance scoring
-    Configurable model
-    Graceful fallback on failure
+note right of quality_scorer
+    April 6, 2026 solid-gold matrix:
+    18 configs (3 embeddings x 2 pipelines x 3 rerankers).
+    Deterministic gold scoring was primary.
 end note
 @enduml

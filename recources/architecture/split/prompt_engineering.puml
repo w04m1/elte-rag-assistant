@@ -1,0 +1,29 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEF8
+skinparam classBackgroundColor #F0F0F0
+skinparam classBorderColor #333333
+skinparam stereotypeCBackgroundColor #D3D3D3
+
+package "Prompt Engineering" #FFF8E8 {
+    [System Prompt\n(role + rules)] as sys_prompt
+    [Few-Shot Examples\n(2 Q&A pairs)] as few_shot
+    [Follow-Up Rewrite Prompt] as rewrite_prompt
+    [Rerank Prompt\n(score-list JSON)] as rerank_prompt
+    [Temporal Prompt Contract\n- current_date\n- weekday\n- current_term\nTZ: Europe/Budapest\nTerm rule: Aug 1-Jan 20 => Autumn/Fall/1st,\nelse Spring/2nd] as temporal_contract
+    [Structured Output Schema\n(RAGOutput: reasoning,\nanswer, confidence,\ncited_sources)] as schema
+}
+
+[Runtime Query Rewriter] as rewriter
+[Runtime LLM Reranker] as llm_reranker
+[Runtime LLM Generator] as llm
+[Runtime Temporal Context Composer] as temporal_ctx
+
+sys_prompt --> llm
+few_shot --> llm
+schema --> llm
+rewrite_prompt --> rewriter
+rerank_prompt --> llm_reranker
+temporal_contract --> temporal_ctx
+
+@enduml

@@ -1,0 +1,33 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEF8
+skinparam classBackgroundColor #F0F0F0
+skinparam classBorderColor #333333
+skinparam stereotypeCBackgroundColor #D3D3D3
+
+package "Admin and Management" #F4F8E8 {
+    [Admin Panel\n(React/FastAPI)] as admin
+    [Document Manager] as doc_mgr
+    [Runtime Settings Store\n(data/runtime/settings.json)] as settings_store
+    [Usage Logger\n(JSONL in data/runtime)] as logger
+    [News Job Controller\n(bootstrap/sync, manual)] as news_jobs
+    [Reindex Job\n(manual trigger)] as reindex_job
+    [Documents Sync Job\n(manual trigger)] as doc_sync_job
+
+    admin --> settings_store: update model/prompt settings
+    admin --> doc_mgr: upload/delete docs,\ntrigger sync/reindex
+    doc_mgr --> doc_sync_job: trigger document sync
+    doc_mgr --> reindex_job: trigger reindex
+    admin --> news_jobs: trigger news bootstrap/sync
+    admin --> logger: view usage overview\nand recent queries
+}
+
+[Runtime Backend] as backend
+[Snapshot Builder] as snapshot_builder
+[News Pipeline] as news_pipeline
+
+backend --> logger: log all /ask requests
+reindex_job --> snapshot_builder: rebuild active snapshot
+news_jobs --> news_pipeline: run pipeline manually
+
+@enduml
