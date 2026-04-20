@@ -152,7 +152,3 @@ Fastest configuration in this run:
 - `local_minilm + baseline_v1 + off`
 - single-turn latency `3660.78 ms`
 - multi-turn latency `3527.94 ms`
-
-Gate outcome:
-- `0 / 18` configurations passed all balanced gates.
-- Transport and cost gates passed consistently; primary failures were quality thresholds and latency thresholds.
