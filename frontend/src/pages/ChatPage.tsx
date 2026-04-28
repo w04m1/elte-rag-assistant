@@ -27,6 +27,20 @@ function markdownUrlTransform(url: string): string {
   return defaultUrlTransform(url);
 }
 
+function confidenceClassName(confidence: string): string {
+  const normalizedConfidence = confidence.trim().toLowerCase();
+  if (normalizedConfidence === "low") {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+  if (normalizedConfidence === "medium") {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+  if (normalizedConfidence === "high") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+  return "border-border bg-muted text-muted-foreground";
+}
+
 export function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     if (typeof window === "undefined") {
@@ -241,13 +255,26 @@ export function ChatPage() {
                 )}
 
                 {message.role === "assistant" && message.confidence ? (
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    Confidence: <span className="font-medium">{message.confidence}</span>
+                  <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                    Confidence:
+                    <span
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 text-[11px] font-semibold capitalize leading-tight",
+                        confidenceClassName(message.confidence),
+                      )}
+                    >
+                      {message.confidence}
+                    </span>
                   </p>
                 ) : null}
 
                 {message.role === "assistant" && message.reasoning ? (
-                  <p className="mt-1 text-xs text-muted-foreground">Reasoning: {message.reasoning}</p>
+                  <details className="mt-1 text-xs text-muted-foreground">
+                    <summary className="w-fit cursor-pointer font-medium text-primary hover:text-primary/80 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+                      Reasoning
+                    </summary>
+                    <p className="mt-1 leading-5">{message.reasoning}</p>
+                  </details>
                 ) : null}
 
                 {message.role === "assistant" && message.requestId ? (

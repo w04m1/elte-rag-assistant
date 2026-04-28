@@ -54,6 +54,11 @@ describe("ChatPage", () => {
 
     expect(screen.getByRole("button", { name: /new chat/i })).toBeInTheDocument();
     expect(screen.getByText(/Bring required forms/)).toBeInTheDocument();
+    expect(screen.getByText("high")).toHaveClass("bg-emerald-50", "text-emerald-700");
+
+    const reasoningDetails = screen.getByText("Reasoning").closest("details");
+    expect(reasoningDetails).not.toBeNull();
+    expect(reasoningDetails).not.toHaveAttribute("open");
 
     const inlineCitation = screen.getByRole("button", { name: /citation c1/i });
     await user.click(inlineCitation);
