@@ -48,6 +48,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage/backend-coverage.xml
           flags: backend
+          override_branch: ${{ github.head_ref || github.ref_name }}
           disable_search: true
           fail_ci_if_error: true
 
@@ -58,6 +59,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: frontend/coverage/lcov.info
           flags: frontend
+          override_branch: ${{ github.head_ref || github.ref_name }}
           disable_search: true
           fail_ci_if_error: true
 
